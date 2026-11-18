@@ -1,0 +1,46 @@
+name: Build Android APK
+
+# 推送到 main 或手动触发：云端自动编译出可直接安装的 APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Managed workflow：在 CI 中生成 android 原生工程（不提交进仓库）
+      - name: Expo prebuild (android)
+        run: npx expo prebuild -p android --no-install
+        env:
+          EXPO_NO_TELEMETRY: 1
+
+      # Expo 模板默认 release 使用 debug 签名，产物为可直接安装的 APK
+      - name: Gradle assembleRelease
+        run: cd android && ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pingpong-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
