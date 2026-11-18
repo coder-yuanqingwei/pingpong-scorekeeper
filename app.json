@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "乒乓计分器",
+    "slug": "pingpong-scorekeeper",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.workbuddy.pingpongscorekeeper",
+      "versionCode": 1
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
