@@ -12,6 +12,12 @@
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f8140e42-2b5b-4966-9ecf-a88e8691f4d3"
+      }
+    },
+    "owner": "yqw2026"
   }
 }
