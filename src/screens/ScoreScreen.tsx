@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Modal, TextInput, Alert, Switch,
+  Modal, TextInput, Alert, Switch, useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -9,6 +9,16 @@ import type { ScoreNavProp, RootTabParamList, MatchConfig } from '../navigation.
 import { C, R } from '../theme';
 import { loadSettings, saveSettings } from '../storage';
 import type { Settings } from '../storage';
+import { HistoryIcon } from '../components/ToolIcons';
+import {
+  FREE_GAMES_IDLE_LABEL, FREE_GAMES_RADIO_LABELS, FREE_GAMES_SELECTOR_RANGE,
+  FREE_GAMES_CAP, FREE_WINS_REQUIRED, clampFreeGamesPickerIndex,
+  freeGamesRadioLabelFromIndex, winsRequiredFromFreePickerIndex,
+} from '../freeGamesOptions';
+import {
+  CUSTOM_SCORE_DEFAULT, CUSTOM_SCORE_SELECTOR_RANGE,
+  customScoreFromPickerIndex, customScoreIndexOf, normalizeCustomScore,
+} from '../customScoreOptions';
 
 type ScoreRoute = RouteProp<RootTabParamList, '首页'>;
 
@@ -42,6 +52,18 @@ export default function ScoreScreen() {
   const [moreVisible, setMoreVisible] = useState(false);
   const [playerModal, setPlayerModal] = useState<'A' | 'B' | null>(null);
   const [playerDraft, setPlayerDraft] = useState('');
+  // 原型 freeGamesPickerIndex / isFreeGamesSelected：自由赛制下拉（utils/freeGamesOptions）
+  const [freeIdx, setFreeIdx] = useState(0);
+  const [isFree, setIsFree] = useState(false);
+  // 原型 currentCustomScore / isCustomSelected：自定义每局分数下拉（utils/customScoreOptions）
+  const [currentCustomScore, setCurrentCustomScore] = useState(CUSTOM_SCORE_DEFAULT);
+  const [isCustomSelected, setIsCustomSelected] = useState(false);
+  // 通用锚定下拉：'free'（赛制）| 'custom'（每局分数）
+  const [ddKind, setDdKind] = useState<'free' | 'custom' | null>(null);
+  const freeAnchorRef = React.useRef<React.ComponentRef<typeof TouchableOpacity> | null>(null);
+  const customAnchorRef = React.useRef<React.ComponentRef<typeof TouchableOpacity> | null>(null);
+  const [anchorPos, setAnchorPos] = useState<{ x: number; y: number; w: number } | null>(null);
+  const { width: winW } = useWindowDimensions();
 
   useFocusEffect(useCallback(() => {
     loadSettings().then((s: Settings) => {
@@ -51,6 +73,16 @@ export default function ScoreScreen() {
       setWinByTwo(s.winByTwo);
       setInterGameRest(s.interGameRest ?? false);
       setAutoCourtSwap(s.autoCourtSwap ?? true);
+      if (s.free) {
+        setIsFree(true);
+        setFreeIdx(clampFreeGamesPickerIndex(s.freeGamesPickerIndex ?? 0));
+        setGamesToWin(s.gamesToWin);
+      }
+      // 自定义分数恢复：非 21/15/11 即为自定义选中态（原型 isCustomSelected）
+      if (![21, 15, 11].includes(s.pointsToWin)) {
+        setCurrentCustomScore(s.pointsToWin);
+        setIsCustomSelected(true);
+      }
       if (s.playerA && s.playerA !== '选手 A') setNameA(s.playerA);
       if (s.playerB && s.playerB !== '选手 B') setNameB(s.playerB);
     });
@@ -62,16 +94,56 @@ export default function ScoreScreen() {
     }
   }, [route.params, navigation]));
 
+  const openDropdown = (kind: 'free' | 'custom', ref: React.RefObject<React.ComponentRef<typeof TouchableOpacity> | null>) => {
+    ref.current?.measureInWindow((x, y, w) => {
+      setAnchorPos({ x, y, w });
+      setDdKind(kind);
+    });
+  };
+
+  // 原型 onFreeGamesSelectorChange：选中下拉项 → 应用赛制并持久化
+  const applyFreePick = (idx: number) => {
+    const i = clampFreeGamesPickerIndex(idx);
+    const winsRequired = winsRequiredFromFreePickerIndex(i);
+    setFreeIdx(i);
+    setIsFree(true);
+    setDdKind(null);
+    setGamesToWin(winsRequired);
+    saveSettings({
+      pointsToWin, winByTwo, gamesToWin: winsRequired, serveInterval,
+      playerA: nameA, playerB: nameB, interGameRest, autoCourtSwap,
+      free: true, freeGamesPickerIndex: i,
+    }).catch(() => {});
+  };
+
+  // 原型 onCustomScoreSelectorChange：选中自定义分值 → scorePerGame=i + 标签更新 + 持久化
+  const applyCustomPick = (idx: number) => {
+    const v = customScoreFromPickerIndex(idx);
+    setCurrentCustomScore(v);
+    setIsCustomSelected(true);
+    setPointsToWin(v);
+    setDdKind(null);
+    saveSettings({
+      pointsToWin: v, winByTwo, gamesToWin, serveInterval,
+      playerA: nameA, playerB: nameB, interGameRest, autoCourtSwap,
+      free: isFree, freeGamesPickerIndex: freeIdx,
+    }).catch(() => {});
+  };
+
   const startMatch = () => {
+    const free = isFree;
     const config: MatchConfig = {
       title: title.trim() || '训练赛',
       dateLabel,
-      pointsToWin, gamesToWin, serveInterval, winByTwo, singles, nameA, nameB,
+      pointsToWin, gamesToWin: free ? winsRequiredFromFreePickerIndex(freeIdx) : gamesToWin,
+      serveInterval, winByTwo, singles, nameA, nameB,
       interGameRest, autoCourtSwap,
+      free: free && freeIdx === 0 ? true : undefined,
     };
     saveSettings({
-      pointsToWin, winByTwo, gamesToWin, serveInterval,
+      pointsToWin, winByTwo, gamesToWin: config.gamesToWin, serveInterval,
       playerA: nameA, playerB: nameB, interGameRest, autoCourtSwap,
+      free: isFree, freeGamesPickerIndex: freeIdx,
     });
     navigation.navigate('Match', { config });
   };
@@ -110,31 +182,51 @@ export default function ScoreScreen() {
 
         {/* 赛制单选组 */}
         <View style={styles.radioGrid}>
-          <TouchableOpacity style={styles.radioItem} onPress={() => setGamesToWin(3)}>
-            <RadioDot on={gamesToWin === 3} /><Text style={styles.radioLabel}>5局3胜</Text>
+          <TouchableOpacity style={styles.radioItem} onPress={() => { setGamesToWin(3); setIsFree(false); }}>
+            <RadioDot on={gamesToWin === 3 && !isFree} /><Text style={styles.radioLabel}>5局3胜</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.radioItem} onPress={() => setGamesToWin(2)}>
-            <RadioDot on={gamesToWin === 2} /><Text style={styles.radioLabel}>3局2胜</Text>
+          <TouchableOpacity style={styles.radioItem} onPress={() => { setGamesToWin(2); setIsFree(false); }}>
+            <RadioDot on={gamesToWin === 2 && !isFree} /><Text style={styles.radioLabel}>3局2胜</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.radioItem} onPress={() => setGamesToWin(1)}>
-            <RadioDot on={gamesToWin === 1} /><Text style={styles.radioLabel}>1局1胜</Text>
+          <TouchableOpacity style={styles.radioItem} onPress={() => { setGamesToWin(1); setIsFree(false); }}>
+            <RadioDot on={gamesToWin === 1 && !isFree} /><Text style={styles.radioLabel}>1局1胜</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.radioItem} onPress={() => setMoreVisible(true)}>
-            <RadioDot on={false} /><Text style={styles.radioLabel}>更多</Text>
+          {/* 4. 自由赛制（原型 freeGamesOptions：闲时「更多」，选中显示赛制名；点按弹锚定下拉） */}
+          <TouchableOpacity
+            ref={freeAnchorRef}
+            style={styles.radioItem}
+            onPress={() => openDropdown('free', freeAnchorRef)}
+            accessibilityLabel="自由赛制"
+          >
+            <RadioDot on={isFree} />
+            <Text
+              style={styles.radioLabel}
+              numberOfLines={1}
+            >
+              {isFree ? freeGamesRadioLabelFromIndex(freeIdx) : FREE_GAMES_IDLE_LABEL}
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.radioItem} onPress={() => setPointsToWin(21)}>
-            <RadioDot on={pointsToWin === 21} /><Text style={styles.radioLabel}>21分</Text>
+          <TouchableOpacity style={styles.radioItem} onPress={() => { setPointsToWin(21); setIsCustomSelected(false); }}>
+            <RadioDot on={pointsToWin === 21 && !isCustomSelected} /><Text style={styles.radioLabel}>21分</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.radioItem} onPress={() => setPointsToWin(15)}>
-            <RadioDot on={pointsToWin === 15} /><Text style={styles.radioLabel}>15分</Text>
+          <TouchableOpacity style={styles.radioItem} onPress={() => { setPointsToWin(15); setIsCustomSelected(false); }}>
+            <RadioDot on={pointsToWin === 15 && !isCustomSelected} /><Text style={styles.radioLabel}>15分</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.radioItem} onPress={() => setPointsToWin(11)}>
-            <RadioDot on={pointsToWin === 11} /><Text style={styles.radioLabel}>11分</Text>
+          <TouchableOpacity style={styles.radioItem} onPress={() => { setPointsToWin(11); setIsCustomSelected(false); }}>
+            <RadioDot on={pointsToWin === 11 && !isCustomSelected} /><Text style={styles.radioLabel}>11分</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.radioItem} onPress={() => setMoreVisible(true)}>
-            <RadioDot on={pointsToWin !== 11 && pointsToWin !== 15 && pointsToWin !== 21} />
-            <Text style={styles.radioLabel}>自定义({pointsToWin}分)</Text>
+          {/* 8. 自定义每局分数（原型 customScoreOptions：闲时「自定义(7分)」，选中显示当前分值；点按弹锚定下拉） */}
+          <TouchableOpacity
+            ref={customAnchorRef}
+            style={styles.radioItem}
+            onPress={() => openDropdown('custom', customAnchorRef)}
+            accessibilityLabel="自定义分数"
+          >
+            <RadioDot on={isCustomSelected} />
+            <Text style={styles.radioLabel} numberOfLines={1}>
+              {isCustomSelected ? `自定义(${pointsToWin}分)` : `自定义(${currentCustomScore}分)`}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.radioItem} onPress={() => setSingles(true)}>
@@ -172,8 +264,12 @@ export default function ScoreScreen() {
           <TouchableOpacity style={styles.startBtn} onPress={startMatch}>
             <Text style={styles.startText}>开始比赛</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.historyBtn} onPress={() => navigation.navigate('球员')}>
-            <Text style={styles.historyIcon}>↺</Text>
+          <TouchableOpacity
+            style={styles.historyBtn}
+            onPress={() => navigation.navigate('球员')}
+            accessibilityLabel="历史比赛"
+          >
+            <HistoryIcon size={22} color="#8d8d8d" />
           </TouchableOpacity>
         </View>
 
@@ -194,6 +290,49 @@ export default function ScoreScreen() {
         </View>
       </ScrollView>
 
+      {/* 自由赛制/自定义分数 下拉（原型 picker selector 弹出样式：白卡圆角阴影、选项居中、点外部关闭） */}
+      {ddKind !== null && (() => {
+        const opts = ddKind === 'free' ? FREE_GAMES_SELECTOR_RANGE : CUSTOM_SCORE_SELECTOR_RANGE;
+        const curIdx = ddKind === 'free' ? freeIdx : customScoreIndexOf(pointsToWin);
+        const curOn = ddKind === 'free' ? isFree : isCustomSelected;
+        const onPick = ddKind === 'free' ? applyFreePick : applyCustomPick;
+        return (
+          <TouchableOpacity
+            style={styles.ddOverlay}
+            activeOpacity={1}
+            onPress={() => setDdKind(null)}
+          >
+            <View
+              style={[
+                styles.ddCard,
+                anchorPos && {
+                  top: anchorPos.y + 96,
+                  left: Math.max(12, Math.min(anchorPos.x + anchorPos.w / 2 - 130, winW - 272)),
+                },
+              ]}
+            >
+              <ScrollView style={opts.length > 8 ? styles.ddListScroll : undefined} nestedScrollEnabled>
+                {opts.map((opt, i) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={styles.ddItem}
+                    activeOpacity={0.6}
+                    onPress={() => onPick(i)}
+                  >
+                    <Text
+                      style={[styles.ddItemText, curOn && curIdx === i && styles.ddItemTextOn]}
+                      numberOfLines={1}
+                    >
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        );
+      })()}
+
       {/* 更多设置弹层 */}
       <Modal visible={moreVisible} transparent animationType="slide" onRequestClose={() => setMoreVisible(false)}>
         <View style={styles.modalMask}>
@@ -203,7 +342,13 @@ export default function ScoreScreen() {
             <TextInput
               style={styles.modalInput} keyboardType="numeric"
               value={String(pointsToWin)}
-              onChangeText={(v) => setPointsToWin(Math.max(1, parseInt(v, 10) || 1))}
+              onChangeText={(v) => {
+                // 原型 normalizeCustomScore：錳到 3..100 并吸附到最近合法分值
+                const snapped = normalizeCustomScore(parseInt(v, 10) || CUSTOM_SCORE_DEFAULT);
+                setPointsToWin(snapped);
+                setCurrentCustomScore(snapped);
+                setIsCustomSelected(true);
+              }}
             />
             <View style={styles.switchRow}>
               <Text style={styles.modalLabel}>净胜两分才算赢</Text>
@@ -309,11 +454,12 @@ const styles = StyleSheet.create({
   playerAddIcon: { color: '#fff', fontSize: 16, fontWeight: '700' },
   playerChosen: { paddingHorizontal: 18, fontSize: 12, color: '#6b7280', marginBottom: 6 },
 
-  startRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginTop: 26, marginBottom: 30 },
-  startBtn: { flex: 1, height: 48, borderRadius: 8, backgroundColor: '#f2f3f5', alignItems: 'center', justifyContent: 'center' },
-  startText: { fontSize: 17, fontWeight: '700', color: '#1667d6' },
-  historyBtn: { width: 50, height: 48, borderRadius: 8, backgroundColor: '#f2f3f5', alignItems: 'center', justifyContent: 'center' },
-  historyIcon: { fontSize: 26, color: '#9ca3af' },
+  // 原型 qs-home-action-row / qs-home-start-btn / qs-home-history-btn：开始按钮与历史按钮同高(80rpx)、
+  // 同背景 #f2f2f2；历史按钮正方形(80×80rpx)、圆角16rpx、图标40rpx 灰 #8d8d8d，紧贴开始按钮右侧(间距16rpx)。
+  startRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginTop: 26, marginBottom: 30 },
+  startBtn: { flex: 1, height: 48, borderRadius: 9, backgroundColor: '#f2f2f2', alignItems: 'center', justifyContent: 'center' },
+  startText: { fontSize: 17, fontWeight: '700', color: '#2c6cea' },
+  historyBtn: { width: 48, height: 48, borderRadius: 9, backgroundColor: '#f2f2f2', alignItems: 'center', justifyContent: 'center' },
 
   entryRow: { flexDirection: 'row', paddingHorizontal: 24, justifyContent: 'space-between' },
   entry: { alignItems: 'center', width: 90 },
@@ -325,6 +471,19 @@ const styles = StyleSheet.create({
   entryLabel: { fontSize: 13, color: '#374151' },
 
   modalMask: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
+
+  // 自由赛制下拉（截图复刻：白卡圆角阴影、选项居中，覆盖在单选组上）
+  ddOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 30 },
+  ddCard: {
+    position: 'absolute', width: 260, backgroundColor: '#fff', borderRadius: 14,
+    paddingVertical: 8,
+    shadowColor: 'rgba(15,23,42,0.18)', shadowOpacity: 1, shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 }, elevation: 10,
+  },
+  ddListScroll: { maxHeight: 336 },
+  ddItem: { height: 48, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  ddItemText: { fontSize: 16, color: '#1f2937' },
+  ddItemTextOn: { color: RADIO_GREEN, fontWeight: '600' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: R.lg, borderTopRightRadius: R.lg, padding: 20, paddingBottom: 30 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 14 },
   modalLabel: { fontSize: 13, color: C.sub, marginBottom: 8 },

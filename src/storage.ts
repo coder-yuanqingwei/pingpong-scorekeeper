@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Fixture, Side } from './algorithms/types';
+import type { MatchStats } from './matchStats';
 
 const KEYS = {
   MATCHES: 'pp_matches_v1',
@@ -16,6 +17,9 @@ export interface Settings {
   playerB: string;
   interGameRest: boolean;
   autoCourtSwap: boolean;
+  /** 自由赛制（原型 isFreeGamesSelected）与其下拉索引（freeGamesPickerIndex） */
+  free?: boolean;
+  freeGamesPickerIndex?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +40,34 @@ export interface GameRecord {
   index: number;
 }
 
+/** 进行中比赛的完整快照，用于从历史记录「继续比赛」恢复现场。 */
+export interface MatchSnapshot {
+  scoreA: number;
+  scoreB: number;
+  gamesA: number;
+  gamesB: number;
+  gameHistory: GameRecord[];
+  startServer: 'A' | 'B';
+  serve: 'A' | 'B';
+  /** 技术统计（原型 matchStats）：继续比赛时恢复五项实时统计 */
+  stats?: MatchStats;
+  /** 赛前完整配置（含每局分数/胜局数/发球间隔等），恢复时直接带回计分页 */
+  config: {
+    title: string;
+    dateLabel: string;
+    pointsToWin: number;
+    gamesToWin: number;
+    serveInterval: number;
+    winByTwo: boolean;
+    singles: boolean;
+    nameA: string;
+    nameB: string;
+    interGameRest?: boolean;
+    autoCourtSwap?: boolean;
+    free?: boolean;
+  };
+}
+
 export interface MatchRecord {
   id: string;
   date: string;
@@ -46,6 +78,10 @@ export interface MatchRecord {
   games: GameRecord[];
   winner: 'A' | 'B';
   config: { pointsToWin: number; gamesToWin: number };
+  /** 进行中=ongoing（可继续），已完成=finished（默认，兼容旧记录） */
+  status?: 'ongoing' | 'finished';
+  /** 仅 ongoing：恢复现场用的完整快照 */
+  snapshot?: MatchSnapshot;
 }
 
 export interface TournamentResult {
@@ -110,6 +146,43 @@ export async function appendMatch(match: MatchRecord): Promise<MatchRecord[]> {
 export async function removeMatch(id: string): Promise<MatchRecord[]> {
   const list = await loadMatches();
   const next = list.filter((m) => m.id !== id);
+  await writeJSON(KEYS.MATCHES, next);
+  return next;
+}
+
+/** 进行中记录的稳定 id（标题+双方名），storage 与计分页共用，保证存档/清理指向同一条。 */
+export function ongoingMatchId(title: string, nameA: string, nameB: string): string {
+  return `ongoing_${title}_${nameA}_${nameB}`.replace(/\s+/g, '');
+}
+
+/** 退出比赛时存档/更新进行中记录。同场重复退出为覆盖更新。 */
+export async function upsertOngoingMatch(snap: MatchSnapshot): Promise<MatchRecord[]> {
+  const c = snap.config;
+  const id = ongoingMatchId(c.title, c.nameA, c.nameB);
+  const list = await loadMatches();
+  const rec: MatchRecord = {
+    id,
+    date: new Date().toISOString(),
+    nameA: c.nameA,
+    nameB: c.nameB,
+    gamesA: snap.gamesA,
+    gamesB: snap.gamesB,
+    games: snap.gameHistory,
+    winner: snap.gamesA >= snap.gamesB ? 'A' : 'B',
+    config: { pointsToWin: c.pointsToWin, gamesToWin: c.gamesToWin },
+    status: 'ongoing',
+    snapshot: snap,
+  };
+  const next = [rec, ...list.filter((m) => m.id !== id)].slice(0, 200);
+  await writeJSON(KEYS.MATCHES, next);
+  return next;
+}
+
+/** 整场比赛结束时，删除对应的进行中记录并写入最终结果（由 finishMatch 调用）。 */
+export async function completeMatch(record: MatchRecord, ongoingId: string): Promise<MatchRecord[]> {
+  const list = await loadMatches();
+  const rest = list.filter((m) => m.id !== ongoingId);
+  const next = [{ ...record, status: 'finished' as const, snapshot: undefined }, ...rest].slice(0, 200);
   await writeJSON(KEYS.MATCHES, next);
   return next;
 }

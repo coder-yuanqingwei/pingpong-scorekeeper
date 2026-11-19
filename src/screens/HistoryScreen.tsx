@@ -1,12 +1,14 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { C, shadow, R } from '../theme';
 import Hero from '../components/Hero';
 import { loadMatches, removeMatch } from '../storage';
 import type { MatchRecord } from '../storage';
+import type { HistoryNavProp } from '../navigation.types';
 
 export default function HistoryScreen() {
+  const navigation = useNavigation<HistoryNavProp>();
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -29,23 +31,52 @@ export default function HistoryScreen() {
         <Hero kicker="PLAYERS & RECORDS" title="球员" lead={`交手记录 · 共 ${matches.length} 场`} />
       {matches.map((m) => {
         const open = expanded === m.id;
+        const ongoing = m.status === 'ongoing' && !!m.snapshot;
+        const snap = m.snapshot;
         return (
-          <View key={m.id} style={styles.card}>
-            <TouchableOpacity onPress={() => setExpanded(open ? null : m.id)}>
+          <View key={m.id} style={[styles.card, ongoing && styles.cardOngoing]}>
+            <TouchableOpacity onPress={() => setExpanded(open ? null : m.id)} disabled={ongoing}>
               <View style={styles.row}>
                 <Text style={styles.date}>{new Date(m.date).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
-                <Text style={[styles.resultTag, m.winner === 'B' && styles.resultTagBlue]}>
-                  {m.winner === 'A' ? m.nameA : m.nameB} 胜
-                </Text>
+                {ongoing ? (
+                  <Text style={styles.ongoingTag}>进行中</Text>
+                ) : (
+                  <Text style={[styles.resultTag, m.winner === 'B' && styles.resultTagBlue]}>
+                    {m.winner === 'A' ? m.nameA : m.nameB} 胜
+                  </Text>
+                )}
               </View>
               <View style={styles.scoreRow}>
-                <Text style={[styles.name, m.winner === 'A' && styles.nameWin]}>{m.nameA}</Text>
-                <Text style={styles.score}>{m.gamesA} : {m.gamesB}</Text>
-                <Text style={[styles.name, styles.nameRight, m.winner === 'B' && styles.nameWin]}>{m.nameB}</Text>
+                <Text style={[styles.name, !ongoing && m.winner === 'A' && styles.nameWin]}>{m.nameA}</Text>
+                <Text style={styles.score}>
+                  {ongoing && snap
+                    ? `${m.gamesA + snap.scoreA} : ${m.gamesB + snap.scoreB}`
+                    : `${m.gamesA} : ${m.gamesB}`}
+                </Text>
+                <Text style={[styles.name, styles.nameRight, !ongoing && m.winner === 'B' && styles.nameWin]}>{m.nameB}</Text>
               </View>
-              <Text style={styles.detailHint}>{open ? '收起详情 ▲' : '查看详情 ▼'}</Text>
+              {ongoing && snap && (
+                <Text style={styles.ongoingHint}>第 {snap.gameHistory.length + 1} 局 · 当前 {snap.scoreA} : {snap.scoreB}</Text>
+              )}
+              {!ongoing && <Text style={styles.detailHint}>{open ? '收起详情 ▲' : '查看详情 ▼'}</Text>}
             </TouchableOpacity>
-            {open && (
+            {ongoing && snap && (
+              <View>
+                <TouchableOpacity
+                  style={styles.resumeBtn}
+                  onPress={() => navigation.navigate('Match', { config: snap.config, resume: snap })}
+                >
+                  <Text style={styles.resumeBtnText}>继续比赛 →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.delOngoing} onPress={() => {
+                  Alert.alert('删除记录', '确定放弃这场未完成的比赛？', [
+                    { text: '取消', style: 'cancel' },
+                    { text: '删除', style: 'destructive', onPress: () => removeMatch(m.id).then(setMatches) },
+                  ]);
+                }}><Text style={styles.delText}>放弃这场比赛</Text></TouchableOpacity>
+              </View>
+            )}
+            {!ongoing && open && (
               <View style={styles.detail}>
                 {(m.games || []).map((g, i) => (
                   <View key={i} style={styles.gameRow}>
@@ -83,6 +114,12 @@ const styles = StyleSheet.create({
   date: { fontSize: 12, color: C.sub },
   resultTag: { fontSize: 12, color: C.primary, backgroundColor: C.softRed, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   resultTagBlue: { color: C.blue, backgroundColor: C.softBlue },
+  cardOngoing: { borderColor: C.blue, borderWidth: 1.5 },
+  ongoingTag: { fontSize: 12, color: '#fff', backgroundColor: C.blue, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, fontWeight: '700' },
+  ongoingHint: { fontSize: 12, color: C.blue, textAlign: 'center', marginTop: 8 },
+  resumeBtn: { marginTop: 12, backgroundColor: C.blue, borderRadius: R.md, paddingVertical: 10, alignItems: 'center' },
+  resumeBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  delOngoing: { alignSelf: 'center', marginTop: 10, paddingVertical: 4 },
   scoreRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   name: { flex: 1, fontSize: 14, color: C.text },
   nameRight: { textAlign: 'right' },

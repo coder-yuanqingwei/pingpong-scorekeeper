@@ -8,13 +8,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { MatchNavProp, MatchRouteProp, MatchConfig } from '../navigation.types';
 import { SCORE_FONT } from '../theme';
-import { appendMatch } from '../storage';
-import type { GameRecord } from '../storage';
+import { appendMatch, upsertOngoingMatch, completeMatch } from '../storage';
+import type { GameRecord, MatchSnapshot } from '../storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Svg, Path } from 'react-native-svg';
 import { THEMES, shade, readThemeId, writeThemeId, resolveTheme } from '../scoreThemes';
 import { ClickHandHint } from '../components/ClickHandHint';
 import { BigscreenOverlay } from '../components/BigscreenOverlay';
+import {
+  VoiceIcon, VoiceCloseIcon, SwapServeIcon, SwapCourtIcon, GamesIcon, StatsIcon, QuitIcon,
+} from '../components/ToolIcons';
+import SmallScoreDetailPanel, { ScoreCell } from '../components/SmallScoreDetailPanel';
+import LiveStatsSheet, { LiveStatRow } from '../components/LiveStatsSheet';
+import { createEmpty, recordPoint, finalizeGame, type MatchStats } from '../matchStats';
 
 type Side = 'A' | 'B';
 
@@ -235,6 +241,7 @@ interface Snapshot {
   scoreA: number; scoreB: number; gamesA: number; gamesB: number;
   gameHistory: GameRecord[]; startServer: Side; serve: Side;
   courtSwapped: boolean; expediteActive: boolean;
+  stats?: MatchStats;
 }
 
 function fmtTime(total: number) {
@@ -243,10 +250,47 @@ function fmtTime(total: number) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** 赛制（局数）中文标签：gamesToWin 1/2/3 → 一局一胜/三局两胜/五局三胜 */
+/** 赛制（局数）中文标签：gamesToWin 1/2/3 → 一局一胜/三局两胜/五局三胜；9999 → 自由（原型 FREE_WINS_REQUIRED） */
 function formatLabel(gamesToWin: number): string {
+  if (gamesToWin >= 9999) return '自由';
   const map: Record<number, string> = { 1: '一局一胜', 2: '三局两胜', 3: '五局三胜' };
   return map[gamesToWin] ?? `${2 * gamesToWin - 1}局${gamesToWin}胜`;
+}
+
+/** 原型 buildSmallScoreRuleSummary 乒乓分支的规则摘要（用于「各局比分」弹层头部）。
+ *  {gamesCount}局{winsRequired}胜 · {scorePerGame}分 · 净胜2分/无加分。复刻无决胜局/封顶配置，故省略该段。 */
+function buildRuleSummary(cfg: MatchConfig): string {
+  const parts = [
+    cfg.free
+      ? '自由（封顶100局）'
+      : `${Math.max(1, 2 * cfg.gamesToWin - 1)}局${Math.max(1, cfg.gamesToWin)}胜`,
+    `${Math.max(1, cfg.pointsToWin)}分`,
+    cfg.winByTwo ? '净胜2分' : '无加分',
+  ];
+  return parts.join(' · ');
+}
+
+/** 原型 utils/matchStatsDetail.buildStatsRows + buildStatsWithBars：5 项球拍指标 + 左右比例条。
+ *  比例：bluePct=round(b/(b+r)*100)，redPct=100-bluePct（总为 0 时两者皆 0），领先项加粗。 */
+function buildLiveStatRows(stats: MatchStats): LiveStatRow[] {
+  const defs: Array<[string, keyof import('../matchStats').SideStats]> = [
+    ['总得分', 'totalPoints'],
+    ['最高连续得分', 'maxConsecutive'],
+    ['逆转取胜局', 'comebackGamesWon'],
+    ['发球得分', 'servePointsWon'],
+    ['接发得分', 'receivePointsWon'],
+  ];
+  return defs.map(([label, key]) => {
+    const b = Math.max(0, Math.floor(Number(stats.home[key])) || 0);
+    const r = Math.max(0, Math.floor(Number(stats.away[key])) || 0);
+    const sum = b + r;
+    const bluePct = sum > 0 ? Math.round((b / sum) * 100) : 0;
+    return {
+      label, blue: String(b), red: String(r),
+      bluePct, redPct: sum > 0 ? 100 - bluePct : 0,
+      blueLead: b > r, redLead: r > b,
+    };
+  });
 }
 
 /** 原版 Ht()：秒表显示 mm:ss.d（精确到 0.1 秒） */
@@ -266,18 +310,21 @@ export default function MatchScreen() {
   const navigation = useNavigation<MatchNavProp>();
   const route = useRoute<MatchRouteProp>();
   const initial = route.params.config;
+  // 从历史记录「继续比赛」恢复：快照优先于初始配置
+  const resume: MatchSnapshot | undefined = route.params.resume;
+  const restoredCfg: MatchConfig = resume ? { ...resume.config } : initial;
   const { width: W, height: H } = useWindowDimensions();
   const compact = W < 720;
 
-  const [title, setTitle] = useState(initial.title || '训练赛');
-  const [cfg, setCfg] = useState<MatchConfig>(initial);
-  const [scoreA, setScoreA] = useState(0);
-  const [scoreB, setScoreB] = useState(0);
-  const [gamesA, setGamesA] = useState(0);
-  const [gamesB, setGamesB] = useState(0);
-  const [gameHistory, setGameHistory] = useState<GameRecord[]>([]);
-  const [startServer, setStartServer] = useState<Side>('A');
-  const [serve, setServe] = useState<Side>('A');
+  const [title, setTitle] = useState(restoredCfg.title || '训练赛');
+  const [cfg, setCfg] = useState<MatchConfig>(restoredCfg);
+  const [scoreA, setScoreA] = useState(resume?.scoreA ?? 0);
+  const [scoreB, setScoreB] = useState(resume?.scoreB ?? 0);
+  const [gamesA, setGamesA] = useState(resume?.gamesA ?? 0);
+  const [gamesB, setGamesB] = useState(resume?.gamesB ?? 0);
+  const [gameHistory, setGameHistory] = useState<GameRecord[]>(resume?.gameHistory ?? []);
+  const [startServer, setStartServer] = useState<Side>(resume?.startServer ?? 'A');
+  const [serve, setServe] = useState<Side>(resume?.serve ?? 'A');
   const [undoStack, setUndoStack] = useState<Snapshot[]>([]);
   const [seconds, setSeconds] = useState(0);
   const [result, setResult] = useState<{ winner: Side; games: GameRecord[] } | null>(null);
@@ -332,6 +379,18 @@ export default function MatchScreen() {
   const [coinSide, setCoinSide] = useState<Side | null>(null);
   const [sheet, setSheet] = useState<'setting' | 'record' | 'stats' | 'theme' | null>(null);
 
+  // ===== 工具栏第4按钮「各局比分」→ 原型 onOpenSmallScoreDetail 的小比分详情弹层 =====
+  const [smallDetailOpen, setSmallDetailOpen] = useState(false);
+  const [endScoreView, setEndScoreView] = useState<'games' | 'sets'>('games');
+  // 工具栏第5按钮「技术统计」：原型 onOpenLiveStatsSheet 的底部统计弹层
+  const [statsOpen, setStatsOpen] = useState(false);
+  const statsRef = useRef<MatchStats>(resume?.stats ? JSON.parse(JSON.stringify(resume.stats)) : createEmpty());
+  const [statsTick, setStatsTick] = useState(0);   // 统计变更后触发弹层数值刷新
+  // 手动结束比赛的结果（原型 finalizeManualEndMatch：把当前局算作最后一局、大局分判定胜方）
+  const [manualEnd, setManualEnd] = useState<{ winner: Side; games: GameRecord[]; date: string } | null>(null);
+  // 弹层 mode：比赛已结束(result 或手动结束) → end，否则 running
+  const detailMode: 'running' | 'end' = result || manualEnd ? 'end' : 'running';
+
   // ===== 大屏模式（电视投屏）：横屏沉浸界面，配合手机系统「投屏/屏幕镜像」镜像到电视 =====
   // 配对由系统投屏菜单自动发现局域网电视完成，电视端零输入；App 只提供适合电视显示的画面。
   const [tvMode, setTvMode] = useState(false);
@@ -374,7 +433,7 @@ export default function MatchScreen() {
 
   /** 原版 wx.showModal 的白色确认框（点 T 请求暂停 / 提前结束暂停） */
   const [confirmModal, setConfirmModal] = useState<{
-    title: string; content: string; onConfirm: () => void;
+    title: string; content: string; onConfirm: () => void; confirmText?: string; cancelText?: string;
   } | null>(null);
 
   const theme = resolveTheme(themeId, THEMES);
@@ -480,24 +539,45 @@ export default function MatchScreen() {
     else navigation.navigate('Tabs');
   }, [navigation]);
 
+  /** 原型 onExitTap：比赛进行中点退出需二次确认（wx.showModal：提示 / 确定退出比赛吗？可在比赛记录中继续） */
+  const onExitTap = useCallback(() => {
+    setConfirmModal({
+      title: '提示',
+      content: '确定退出比赛吗？可在比赛记录中继续',
+      confirmText: '退出',
+      cancelText: '取消',
+      onConfirm: () => {
+        // 兑现弹窗承诺：退出即存档当前进度，历史页可「继续比赛」恢复现场
+        const snap: MatchSnapshot = {
+          scoreA, scoreB, gamesA, gamesB, gameHistory, startServer, serve,
+          stats: statsRef.current,
+          config: { ...cfg, title, dateLabel: cfg.dateLabel },
+        };
+        upsertOngoingMatch(snap).catch(() => {});
+        goBack();
+      },
+    });
+  }, [goBack, scoreA, scoreB, gamesA, gamesB, gameHistory, startServer, serve, cfg, title]);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (tvMode) { setTvMode(false); return true; }   // 大屏模式下先退出大屏再返回
-      goBack();
+      onExitTap();
       return true;
     });
     return () => sub.remove();
-  }, [goBack, tvMode]);
+  }, [onExitTap, tvMode]);
 
   useEffect(() => () => { voice.stop(); }, []);
 
   const snapshot = (): Snapshot => ({
     scoreA, scoreB, gamesA, gamesB, gameHistory, startServer, serve,
-    courtSwapped, expediteActive,
+    courtSwapped, expediteActive, stats: statsRef.current,
   });
 
   const finishMatch = (list: GameRecord[], winnerSide: Side) => {
-    appendMatch({
+    // 整场打完：清除对应的进行中存档，写入最终结果（避免历史里同时留 ongoing + finished）
+    completeMatch({
       id: `M${Date.now()}`,
       date: new Date().toISOString(),
       nameA: cfg.nameA, nameB: cfg.nameB,
@@ -505,7 +585,7 @@ export default function MatchScreen() {
       gamesB: list.filter((g) => g.winner === 'B').length,
       games: list, winner: winnerSide,
       config: { pointsToWin: cfg.pointsToWin, gamesToWin: cfg.gamesToWin },
-    });
+    }, `ongoing_${title}_${cfg.nameA}_${cfg.nameB}`.replace(/\s+/g, ''));
     setResult({ winner: winnerSide, games: list });
     speak(`${winnerSide === 'A' ? cfg.nameA : cfg.nameB} 获胜`);
   };
@@ -526,11 +606,18 @@ export default function MatchScreen() {
     const nextStart = nextGameStartServer(gA, gB);
     const matchOverNow = gA >= cfg.gamesToWin || gB >= cfg.gamesToWin;
 
+    // 原型 finalizeGame：本局结束结算「逆转取胜局」（落后≥3仍翻盘），并清零本局分差
+    statsRef.current = finalizeGame(statsRef.current, w === 'A');
+    setStatsTick((n) => n + 1);
+
     // 局数/局史/下局首发立即生效；比分要等换边滑动到位后才归零（原版顺序）
     setGameHistory(list);
     setGamesA(gA); setGamesB(gB);
     setStartServer(nextStart); setServe(nextStart);
     setReturnCount(0);
+    // 原型 FREE_GAMES_CAP=100：自由赛制打满 100 局整场结束
+    const matchOverNowFree = !!cfg.free && list.length >= 100;
+    const matchOver = matchOverNow || matchOverNowFree;
 
     // 原版 applyBadmintonInterGameZeroFlip：比分从终局分翻页向下归零
     const zeroFlip = () => {
@@ -542,7 +629,7 @@ export default function MatchScreen() {
       applyCalloutPatch(nextCallout.home, nextCallout.away);
       speakScore(endA, endB, finalServe, `${w === 'A' ? cfg.nameA : cfg.nameB} 拿下本局`);
       settlingRef.current = false;
-      if (matchOverNow) {
+      if (matchOver) {
         finishMatch(list, gA > gB ? 'A' : 'B');
       } else {
         const isDecider = gA === cfg.gamesToWin - 1 && gB === cfg.gamesToWin - 1;
@@ -553,7 +640,7 @@ export default function MatchScreen() {
 
     // finalizeEndOfGame 尾部：若自动换边开 → beginCourtSwapSlide → 归零翻页
     // 原版滑动 620ms + 60ms 缓冲；按用户手感整体加快 500ms → 滑动缩到 120ms（仍保留可见换边）
-    if (!matchOverNow && autoCourtSwap && !largeScreen && cardPosRef.current.right !== cardPosRef.current.left) {
+    if (!matchOver && autoCourtSwap && !largeScreen && cardPosRef.current.right !== cardPosRef.current.left) {
       settlingRef.current = true;
       // 先解除等待确认态（视觉上「胜」气泡消失、进入滑动），但锁住分数输入直到归零完成
       setGameWinAwaitingConfirm(false); setGameWinWinner(null);
@@ -571,7 +658,7 @@ export default function MatchScreen() {
       });
     } else {
       setGameWinAwaitingConfirm(false); setGameWinWinner(null);
-      if (!matchOverNow && autoCourtSwap) setCourtSwapped((v) => !v);
+      if (!matchOver && autoCourtSwap) setCourtSwapped((v) => !v);
       zeroFlip();
     }
   };
@@ -600,6 +687,12 @@ export default function MatchScreen() {
     setUndoStack((st) => [...st, snapshot()]);
     const nextA = scoreA + (side === 'A' ? 1 : 0);
     const nextB = scoreB + (side === 'B' ? 1 : 0);
+    // 原型 recordRacketMatchStatPoint：逐分记统计（发球方=serve、得分方=side）
+    statsRef.current = recordPoint(statsRef.current, {
+      scoredPoint: true, servingHome: serve === 'A', winnerHome: side === 'A',
+      homePoints: nextA, awayPoints: nextB,
+    });
+    setStatsTick((n) => n + 1);
     const c = computeCallouts(nextA, nextB, target, cap, cfg.winByTwo, gamesA, gamesB, cfg.gamesToWin);
 
     if (c.winner) {
@@ -653,6 +746,7 @@ export default function MatchScreen() {
       setStartServer(s.startServer); setServe(s.serve);
       setExpediteActive(s.expediteActive);
       setReturnCount(0);
+      if (s.stats) { statsRef.current = s.stats; setStatsTick((n) => n + 1); }
     }
     setResult(null);
     const cap = cfg.pointsToWin + 9;
@@ -784,6 +878,7 @@ export default function MatchScreen() {
     setGameHistory([]); setUndoStack([]); setResult(null);
     setStartServer('A'); setServe('A'); setSeconds(0);
     setCourtSwapped(false); setExpediteActive(false); setReturnCount(0);
+    statsRef.current = createEmpty(); setStatsTick((n) => n + 1);
     deciderFiveDoneRef.current = false;
     settlingRef.current = false; swapAnim.setValue(0);
     setGameWinAwaitingConfirm(false); setGameWinWinner(null);
@@ -798,6 +893,68 @@ export default function MatchScreen() {
       { text: '取消', style: 'cancel' },
       { text: '确定', style: 'destructive', onPress: resetMatchState },
     ]);
+  };
+
+  /** 工具栏第4按钮「各局比分」面板：逐局比分格（原型 buildSmallScoreCellsPatch + Rt）。
+   *  已结束局取 gameHistory；进行中再把当前比分作为最后一格追加；isLead=该局分高者。 */
+  const detailCells = (): { cellsA: ScoreCell[]; cellsB: ScoreCell[] } => {
+    const done = detailMode === 'end' && manualEnd ? manualEnd.games : gameHistory;
+    const rows = done.map((g) => ({ a: g.a, b: g.b }));
+    if (detailMode === 'running') rows.push({ a: scoreA, b: scoreB });
+    return {
+      cellsA: rows.map((r) => ({ text: r.a, isLead: r.a > r.b })),
+      cellsB: rows.map((r) => ({ text: r.b, isLead: r.b > r.a })),
+    };
+  };
+
+  /** 原型 onSmallScoreManualEndMatch：弹确认后 finalizeManualEndMatch，
+   *  把当前局作为最后一局计入、按大局分(相同则按当前分)判定胜方，展示结束态面板并存档。 */
+  const onManualEndMatch = () => {
+    setConfirmModal({
+      title: '手动结束比赛',
+      content: '确定要结束本场比赛吗？将以当前场分与小局比分记录结果。',
+      confirmText: '确定', cancelText: '取消',
+      onConfirm: () => {
+        const w: Side = gamesA !== gamesB ? (gamesA > gamesB ? 'A' : 'B') : (scoreA >= scoreB ? 'A' : 'B');
+        const last: GameRecord = { a: scoreA, b: scoreB, winner: scoreA >= scoreB ? 'A' : 'B', index: gameHistory.length + 1 };
+        const games = [...gameHistory, last];
+        const date = cfg.dateLabel || new Date().toISOString();
+        completeMatch({
+          id: `M${Date.now()}`, date,
+          nameA: cfg.nameA, nameB: cfg.nameB,
+          gamesA: games.filter((g) => g.winner === 'A').length,
+          gamesB: games.filter((g) => g.winner === 'B').length,
+          games, winner: w,
+          config: { pointsToWin: cfg.pointsToWin, gamesToWin: cfg.gamesToWin },
+        }, `ongoing_${title}_${cfg.nameA}_${cfg.nameB}`.replace(/\s+/g, ''));
+        setManualEnd({ winner: w, games, date });
+        setEndScoreView('games');
+        voice.stop();
+      },
+    });
+  };
+
+  /** 原型 onSmallScoreRestartGame：确认后 resetScoreBoardForFreshMatch。 */
+  const onSmallScoreRestart = () => {
+    setConfirmModal({
+      title: '比赛还未结束', content: '确定重新开始比赛吗',
+      confirmText: '确定', cancelText: '取消',
+      onConfirm: () => { resetMatchState(); setManualEnd(null); setSmallDetailOpen(false); },
+    });
+  };
+
+  /** 原型 onSmallScoreRematchMatch：再来一局，清空比分重新开打。 */
+  const onSmallScoreRematch = () => {
+    resetMatchState();
+    setManualEnd(null);
+    setEndScoreView('games');
+    setSmallDetailOpen(false);
+  };
+
+  /** 结束态「退出比赛」：原型保存后 navigateBack。复刻已由 finishMatch/manualEnd 存档，直接返回。 */
+  const onSmallScoreExit = () => {
+    setSmallDetailOpen(false);
+    goBack();
   };
 
   /** 强制换发球（原版 onManualSwapServe / @529367）：翻转当前发球方并用反推固定首发基准 */
@@ -984,7 +1141,7 @@ export default function MatchScreen() {
     <View style={styles.root}>
       {/* 顶部白条（原型 notch 刘海屏留白：36rpx vs 8rpx） */}
       <View style={[styles.topBar, notchScreenOpen && styles.topBarNotch]}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <TouchableOpacity style={styles.backBtn} onPress={onExitTap} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Text style={styles.backArrow}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.topTitle}>乒乓计分器</Text>
@@ -996,72 +1153,50 @@ export default function MatchScreen() {
       </View>
 
       <View style={styles.body}>
-        {/* 左侧工具栏（对应原版 whistle/stopwatch/court-swap/coin/toolbar 等） */}
+        {/* 左侧竖排工具栏：严格复刻原型 score-toolbar（从上到下 6 个按钮，真实 SVG 图标）
+            原型 CSS：宽48rpx、半透明白底、圆角、flex:1 等分、图标30rpx、active opacity .75
+            按钮顺序与行为：语音播报(voiceChange) / 强制换发球(onManualSwapServe) /
+            换边(onSwapCourtSides) / 各局比分(onOpenSmallScoreDetail) /
+            技术统计(onOpenLiveStatsSheet) / 退出(onExitTap) */}
         {!toolbarCollapsed && (
           <View style={[styles.rail, { width: railW }]}>
-            {/* 语音播报 voiceOpen */}
+            {/* 1. 语音播报 voiceChange（voice.svg / voice_close.svg） */}
             <TouchableOpacity
-              style={[styles.tool, voiceOn && styles.toolOn]}
+              style={[styles.tool, !voiceOn && styles.toolInactive]}
               onPress={() => { setVoiceOn(!voiceOn); if (voiceOn) voice.stop(); }}
-            ><Text style={styles.toolIcon}>◉</Text></TouchableOpacity>
-            {/* 口哨 whistleShortcutOpen */}
-            {whistleShortcutOpen && (
-              <TouchableOpacity style={styles.tool} onPress={whistle}>
-                <Text style={styles.toolIcon}>♪</Text>
-              </TouchableOpacity>
-            )}
-            {/* 蜂鸣器 buzzerShortcutOpen */}
-            {buzzerShortcutOpen && (
-              <TouchableOpacity style={styles.tool} onPress={buzzer}>
-                <Text style={styles.toolIcon}>⌁</Text>
-              </TouchableOpacity>
-            )}
-            {/* 秒表 stopwatchOpen：独立开始/暂停（与队伍暂停无关），长按复位 */}
-            {stopwatchFeatureOpen && (
-              <TouchableOpacity
-                style={[styles.tool, stopwatchRunning && styles.toolOn]}
-                onPress={onStopwatchToggle}
-                onLongPress={onStopwatchReset}
-              >
-                <Text style={styles.toolIcon}>◷</Text>
-              </TouchableOpacity>
-            )}
-            {/* 强制换边 swapCourtSides：真实交换左右队伍（原版 onSwapCourtSides） */}
-            <TouchableOpacity style={styles.tool} onPress={swapCourtSides}>
-              <Text style={styles.toolIcon}>⇄</Text>
+              accessibilityLabel="语音播报"
+            >
+              {voiceOn ? <VoiceIcon size={26} /> : <VoiceCloseIcon size={26} />}
             </TouchableOpacity>
-            {/* 强制换发球（原版工具栏 onManualSwapServe / change_boll.svg） */}
-            <TouchableOpacity style={styles.tool} onPress={swapServe}>
-              <Text style={styles.toolIcon}>⤨</Text>
+            {/* 2. 强制换发球 onManualSwapServe（change_boll.svg） */}
+            <TouchableOpacity style={styles.tool} onPress={swapServe} accessibilityLabel="强制换发球">
+              <SwapServeIcon size={26} />
             </TouchableOpacity>
-            {/* 轮换发球法 onPingpongExpediteChange（乒乓特有） */}
+            {/* 3. 换边 onSwapCourtSides（change_space.svg） */}
+            <TouchableOpacity style={styles.tool} onPress={swapCourtSides} accessibilityLabel="换边">
+              <SwapCourtIcon size={26} />
+            </TouchableOpacity>
+            {/* 4. 各局比分 onOpenSmallScoreDetail（look_s.svg）→ 小比分详情弹层 */}
             <TouchableOpacity
-              style={[styles.tool, expediteActive && styles.toolOn]}
-              onPress={toggleExpedite}
-            ><Text style={styles.toolIcon}>⇅</Text></TouchableOpacity>
-            {/* 数13拍 onPingpongReturnCountAdd（轮换发球法期间） */}
-            {expediteActive && (
-              <TouchableOpacity style={styles.tool} onPress={addReturnCount} onLongPress={resetReturnCount}>
-                <Text style={[styles.toolIcon, returnCount >= 13 && styles.timerRunning]}>{returnCount || '拍'}</Text>
-              </TouchableOpacity>
-            )}
-            {/* 抛硬币 coinWidgetOpen */}
-            {coinWidgetOpen && (
-              <TouchableOpacity style={styles.tool} onPress={tossCoin}>
-                <Text style={styles.toolIcon}>◐</Text>
-              </TouchableOpacity>
-            )}
-            {/* 局分记录 */}
-            <TouchableOpacity style={styles.tool} onPress={() => setSheet('record')}><Text style={styles.toolIcon}>▤</Text></TouchableOpacity>
-            {/* 统计 */}
-            <TouchableOpacity style={styles.tool} onPress={() => setSheet('stats')}><Text style={styles.toolIcon}>▥</Text></TouchableOpacity>
-            {/* 折叠工具栏 toolbarCollapsed */}
-            <TouchableOpacity style={styles.tool} onPress={() => setToolbarCollapsed(true)}><Text style={styles.toolIcon}>«</Text></TouchableOpacity>
+              style={styles.tool}
+              onPress={() => { setEndScoreView('games'); setSmallDetailOpen(true); }}
+              accessibilityLabel="各局比分"
+            >
+              <GamesIcon size={26} />
+            </TouchableOpacity>
+            {/* 5. 技术统计 onOpenLiveStatsSheet（small_tech.svg，乒乓模式恒可用） */}
+            <TouchableOpacity style={styles.tool} onPress={() => setStatsOpen(true)} accessibilityLabel="技术统计">
+              <StatsIcon size={26} />
+            </TouchableOpacity>
+            {/* 6. 退出 onExitTap（quit.svg，emphasis 高亮） */}
+            <TouchableOpacity style={[styles.tool, styles.toolEmphasis]} onPress={onExitTap} accessibilityLabel="退出">
+              <QuitIcon size={26} />
+            </TouchableOpacity>
           </View>
         )}
         {toolbarCollapsed && (
-          <TouchableOpacity style={styles.railCollapsed} onPress={() => setToolbarCollapsed(false)}>
-            <Text style={styles.toolIcon}>»</Text>
+          <TouchableOpacity style={styles.railCollapsed} onPress={() => setToolbarCollapsed(false)} accessibilityLabel="显示工具栏">
+            <Text style={{ color: '#fff', fontSize: 18, opacity: 0.85 }}>»</Text>
           </TouchableOpacity>
         )}
 
@@ -1242,6 +1377,30 @@ export default function MatchScreen() {
               {/* 判罚在乒乓模式下原版不可用，默认隐藏；开启此开关后才显示判罚配置项 */}
               <SettingCheck label="判罚" value={misconductOpen} onToggle={() => setMisconductOpen(!misconductOpen)} />
             </View>
+            {/* 工具栏严格复刻原型后，秒表/硬币不再占工具栏，操作入口移到这里（功能不丢） */}
+            {(stopwatchFeatureOpen || coinWidgetOpen) && (
+              <View style={s.quickOps}>
+                {stopwatchFeatureOpen && (
+                  <View style={s.quickOpItem}>
+                    <Text style={s.quickOpLabel}>秒表 {stopwatchDisplay}</Text>
+                    <TouchableOpacity style={s.quickOpBtn} onPress={onStopwatchToggle}>
+                      <Text style={s.quickOpBtnText}>{stopwatchRunning ? '暂停' : '开始'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.quickOpBtn} onPress={onStopwatchReset}>
+                      <Text style={s.quickOpBtnText}>复位</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {coinWidgetOpen && (
+                  <View style={s.quickOpItem}>
+                    <Text style={s.quickOpLabel}>抛硬币 {coinSide ? (coinSide === 'A' ? '· 蓝先发' : '· 红先发') : ''}</Text>
+                    <TouchableOpacity style={s.quickOpBtn} onPress={tossCoin}>
+                      <Text style={s.quickOpBtnText}>抛</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
             {/* 乒乓规则 score-settings-pingpong-rule：判罚功能开关（默认隐藏判罚项） */}
             <SettingCheck label="启用判罚功能" value={showMisconductSetting} onToggle={() => setShowMisconductSetting(!showMisconductSetting)} />
           </View>
@@ -1293,7 +1452,7 @@ export default function MatchScreen() {
         <Text style={s.labelInline}>赛制（局数）</Text>
         <View style={s.optRow}>
           {[1, 2, 3].map((n) => (
-            <TouchableOpacity key={n} style={[s.opt, cfg.gamesToWin === n && s.optOn]} onPress={() => setCfg({ ...cfg, gamesToWin: n })}>
+            <TouchableOpacity key={n} style={[s.opt, cfg.gamesToWin === n && !cfg.free && s.optOn]} onPress={() => setCfg({ ...cfg, gamesToWin: n, free: false })}>
               <Text style={[s.optText, cfg.gamesToWin === n && s.optTextOn]}>{2 * n - 1}局{n}胜</Text>
             </TouchableOpacity>
           ))}
@@ -1343,6 +1502,44 @@ export default function MatchScreen() {
         <Text style={s.barLegend}>{cfg.nameA} {scoreA} 分　|　{cfg.nameB} {scoreB} 分</Text>
       </Sheet>
 
+      {/* 工具栏第4按钮：原型 onOpenSmallScoreDetail 小比分详情弹层（running/end 两态） */}
+      <SmallScoreDetailPanel
+        visible={smallDetailOpen}
+        onClose={() => setSmallDetailOpen(false)}
+        mode={detailMode}
+        title={title}
+        ruleSummary={buildRuleSummary(cfg)}
+        dateText={detailMode === 'end' ? (manualEnd?.date || cfg.dateLabel) : undefined}
+        nameA={cfg.nameA}
+        nameB={cfg.nameB}
+        gamesA={gamesA}
+        gamesB={gamesB}
+        cellsA={detailCells().cellsA}
+        cellsB={detailCells().cellsB}
+        winner={manualEnd?.winner ?? result?.winner ?? null}
+        showRematch
+        showStatsLink={detailMode === 'end'}
+        onStats={() => { setSmallDetailOpen(false); setSheet('stats'); }}
+        onManualEnd={onManualEndMatch}
+        onRestart={onSmallScoreRestart}
+        onToggleEndView={() => setEndScoreView((v) => (v === 'games' ? 'sets' : 'games'))}
+        endScoreView={endScoreView}
+        onRematch={onSmallScoreRematch}
+        onExit={onSmallScoreExit}
+      />
+
+      {/* 工具栏第5按钮：原型 onOpenLiveStatsSheet 技术统计底部弹层 */}
+      <LiveStatsSheet
+        visible={statsOpen}
+        onClose={() => setStatsOpen(false)}
+        homeTitle={cfg.nameA}
+        awayTitle={cfg.nameB}
+        rows={buildLiveStatRows(statsRef.current)}
+        swapped={courtSwapped}
+        fillHome={C_BLUE}
+        fillAway={RED}
+      />
+
       {/* 结果弹层 */}
       <Modal visible={!!result} transparent animationType="fade" onRequestClose={() => setResult(null)}>
         <View style={styles.modalMask}>
@@ -1380,14 +1577,14 @@ export default function MatchScreen() {
                 onPress={() => setConfirmModal(null)}
                 activeOpacity={0.7}
               >
-                <Text style={confirmStyles.btnCancelText}>取消</Text>
+                <Text style={confirmStyles.btnCancelText}>{confirmModal?.cancelText ?? '取消'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={confirmStyles.btnConfirm}
                 onPress={() => { const cb = confirmModal?.onConfirm; setConfirmModal(null); cb?.(); }}
                 activeOpacity={0.7}
               >
-                <Text style={confirmStyles.btnConfirmText}>确定</Text>
+                <Text style={confirmStyles.btnConfirmText}>{confirmModal?.confirmText ?? '确定'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1527,16 +1724,18 @@ const styles = StyleSheet.create({
   capsuleDivider: { width: 1, height: 14, backgroundColor: 'rgba(0,0,0,0.14)', marginHorizontal: 8 },
 
   body: { flex: 1, flexDirection: 'row' },
+  // 原版 score-toolbar：background hsla(0,0%,100%,.04)、border-radius 10rpx、
+  // width 48rpx、flex-direction column、按钮 flex:1 等分、图标 30rpx
   rail: {
-    backgroundColor: '#111', margin: 6, marginRight: 2, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'space-around', paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)', margin: 6, marginRight: 2, borderRadius: 5,
+    alignItems: 'center', paddingVertical: 4,
   },
-  tool: { width: '100%', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 8 },
-  toolOn: { backgroundColor: 'rgba(34,197,94,0.22)' },
-  toolIcon: { color: '#fff', fontSize: 22, opacity: 0.9 },
+  tool: { flex: 1, width: '100%', minHeight: 0, alignItems: 'center', justifyContent: 'center' },
+  toolInactive: { opacity: 0.5 },   // 原版 --active 反过来：关闭态弱化
+  toolEmphasis: { opacity: 0.95 },  // 原版 --emphasis（退出）
   railCollapsed: {
-    backgroundColor: '#111', margin: 6, marginRight: 2, borderRadius: 10,
-    width: 30, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)', margin: 6, marginRight: 2, borderRadius: 5,
+    width: 24, alignItems: 'center', justifyContent: 'center',
   },
 
   main: { flex: 1, paddingHorizontal: 8, paddingTop: 4 },
@@ -1612,6 +1811,11 @@ const s = StyleSheet.create({
   fontCell: { width: '34%', minWidth: 200 },
   moreCell: { flex: 1, minWidth: 260 },
   checkGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  quickOps: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', gap: 6 },
+  quickOpItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  quickOpLabel: { color: '#fff', fontSize: 13, flex: 1 },
+  quickOpBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.12)' },
+  quickOpBtnText: { color: '#fff', fontSize: 12 },
   // 单选圆点（原型 radio）
   radioRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
   radioCircle: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#6b7280', alignItems: 'center', justifyContent: 'center' },
