@@ -897,7 +897,8 @@ export default function MatchScreen() {
     },
   }).panHandlers;
 
-  const bigFont = Math.min(W * 0.115, H * 0.30) * (largeScreen ? 0.8 : 1) * (rallyScoreFontScalePct / 100);
+  // 全 App 强制横屏：横屏高度小，"大屏布局"改为放大主比分，不再靠纵向堆叠挤占高度
+  const bigFont = Math.min(W * 0.115, H * 0.30) * (largeScreen ? 1.1 : 1) * (rallyScoreFontScalePct / 100);
   const smallFont = Math.min(W * 0.045, H * 0.075) * (gameScoreFontScalePct / 100);
   const nameFont = (compact ? 18 : 24) * (playerNameFontRpx / 22);
   const railW = toolbarCollapsed ? 0 : (compact ? 38 : 52);
@@ -1078,9 +1079,10 @@ export default function MatchScreen() {
             <Text style={styles.matchTitle}>{title}</Text>
           </View>
 
-          <View style={[styles.cardsRow, largeScreen && styles.cardsRowStack]}>
+          {/* 全 App 强制横屏：两卡始终左右并排；纵向堆叠在横屏低高度下会裁切比分，故不再启用 */}
+          <View style={styles.cardsRow}>
             {courtSwapped ? sideCard('B', 'left') : sideCard('A', 'left')}
-            <View style={[styles.centerCol, largeScreen && styles.centerColStack]}>
+            <View style={styles.centerCol}>
               {/* 原版 score-head-menu：≡ 菜单，位于标题正下方、两卡之间顶部 */}
               <TouchableOpacity style={styles.centerMenu} onPress={() => setSheet('setting')} activeOpacity={0.7}>
                 <Text style={styles.menuLines}>≡</Text>

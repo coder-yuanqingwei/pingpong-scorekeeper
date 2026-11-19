@@ -61,7 +61,9 @@ export function BigscreenOverlay(props: BigscreenOverlayProps) {
     return () => {
       if (Platform.OS !== 'web') {
         StatusBar.setHidden(false);
-        ScreenOrientation.unlockAsync().catch(() => {});
+        // 全局已强制横屏（app.json orientation=landscape），退出大屏时重新锁定横屏，
+        // 不能用 unlockAsync()——否则方向交还系统会随手持方向变回竖屏。
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
       }
       deactivateKeepAwake();
     };
