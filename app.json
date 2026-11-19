@@ -18,6 +18,9 @@
         "projectId": "f8140e42-2b5b-4966-9ecf-a88e8691f4d3"
       }
     },
-    "owner": "yqw2026"
+    "owner": "yqw2026",
+    "plugins": [
+      "expo-audio"
+    ]
   }
 }

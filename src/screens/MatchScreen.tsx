@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert, Modal,
   useWindowDimensions, BackHandler, ScrollView, Animated, Easing, PanResponder,
 } from 'react-native';
-import * as Speech from 'expo-speech';
+import { useVoiceQueue, buildScoreQueue } from '../voice';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { MatchNavProp, MatchRouteProp, MatchConfig } from '../navigation.types';
@@ -378,6 +378,13 @@ export default function MatchScreen() {
   } | null>(null);
 
   const theme = resolveTheme(themeId, THEMES);
+  // 真人录音语音播报（只有比分；其余场景静音）
+  const voice = useVoiceQueue();
+  const playScoreVoice = useCallback((a: number, b: number, serveSide: Side) => {
+    if (!voiceOn) return;
+    const q = buildScoreQueue(a, b, serveSide === 'A', voiceLanguage);
+    if (q.length) voice.speakQueue(q);
+  }, [voice, voiceOn, voiceLanguage]);
 
   // 原型 onLoad：从 ymq_score2_ui_v1 读取持久化主题（含自定义主题）
   useEffect(() => {
@@ -421,7 +428,7 @@ export default function MatchScreen() {
 
   // 卸载时清理所有 interval（对应原版 clearStopwatchTimer / stopTeamTimeoutInterval）
   useEffect(() => () => {
-    Speech.stop();
+    voice.stop();
     if (pauseTimerRef.current) clearInterval(pauseTimerRef.current);
     if (stopwatchTimerRef.current) clearInterval(stopwatchTimerRef.current);
     if (calloutHideRefA.current) clearTimeout(calloutHideRefA.current);
@@ -456,27 +463,19 @@ export default function MatchScreen() {
     }
   }, []);
 
-  const speak = useCallback((text: string) => {
-    if (!voiceOn) return;
-    Speech.stop();
-    Speech.speak(text, { language: voiceLanguage === 'en' ? 'en-US' : 'zh-CN', rate: 1.0 });
-  }, [voiceOn, voiceLanguage]);
+  // 其余场景（暂停/发球/换边/轮换法/13拍/局末"胜"等）按用户选择全部静音，不播报
+  const speak = useCallback((_text: string) => {}, []);
 
-  /** 原版 buildNumericScoreVoiceQueue：播报「发球方分 比/平 接发方分」，相等读"平" */
+  /** 原版 buildNumericScoreVoiceQueue：真人录音播报「发球方分 比/平 接发方分」，相等读"平"。
+   *  suffix（如"胜""拿下本局"）按原型无对应语音，忽略。 */
   const speakScore = useCallback((
-    a: number, b: number, serveSide: Side, suffix?: string,
+    a: number, b: number, serveSide: Side, _suffix?: string,
   ) => {
-    if (a === 0 && b === 0) return; // 原版 0:0 不播
-    const first = serveSide === 'A' ? a : b;
-    const second = serveSide === 'A' ? b : a;
-    const text = first === second
-      ? `${first} 平`
-      : `${first} 比 ${second}`;
-    speak(suffix ? `${text}，${suffix}` : text);
-  }, [speak]);
+    playScoreVoice(a, b, serveSide);
+  }, [playScoreVoice]);
 
   const goBack = useCallback(() => {
-    Speech.stop();
+    voice.stop();
     if (navigation.canGoBack()) navigation.goBack();
     else navigation.navigate('Tabs');
   }, [navigation]);
@@ -490,7 +489,7 @@ export default function MatchScreen() {
     return () => sub.remove();
   }, [goBack, tvMode]);
 
-  useEffect(() => () => { Speech.stop(); }, []);
+  useEffect(() => () => { voice.stop(); }, []);
 
   const snapshot = (): Snapshot => ({
     scoreA, scoreB, gamesA, gamesB, gameHistory, startServer, serve,
@@ -858,16 +857,10 @@ export default function MatchScreen() {
   };
   const resetReturnCount = () => setReturnCount(0);
 
-  /** 口哨：短促高音（原版 whistleShortcut） */
-  const whistle = () => {
-    Speech.stop();
-    Speech.speak('哨', { language: 'zh-CN', rate: 1.6, pitch: 1.4 });
-  };
-  /** 蜂鸣器：低频长鸣（原版 buzzerShortcut） */
-  const buzzer = () => {
-    Speech.stop();
-    Speech.speak('嘟——', { language: 'zh-CN', rate: 0.7, pitch: 0.6 });
-  };
+  /** 口哨：按用户选择静音（原型 koushao.mp3，本次不启用） */
+  const whistle = () => {};
+  /** 蜂鸣器：按用户选择静音（原型 fengmingqi.mp3，本次不启用） */
+  const buzzer = () => {};
 
   /** 抛硬币（原版 coinWidgetOpen）：随机蓝/红先发 */
   const tossCoin = () => {
@@ -1009,7 +1002,7 @@ export default function MatchScreen() {
             {/* 语音播报 voiceOpen */}
             <TouchableOpacity
               style={[styles.tool, voiceOn && styles.toolOn]}
-              onPress={() => { setVoiceOn(!voiceOn); if (voiceOn) Speech.stop(); else speak('语音播报已开启'); }}
+              onPress={() => { setVoiceOn(!voiceOn); if (voiceOn) voice.stop(); }}
             ><Text style={styles.toolIcon}>◉</Text></TouchableOpacity>
             {/* 口哨 whistleShortcutOpen */}
             {whistleShortcutOpen && (
@@ -1213,7 +1206,7 @@ export default function MatchScreen() {
             <Text style={s.groupTitle}>播报语言</Text>
             <SettingRadio label="中文" checked={voiceLanguage === 'zh'} onPress={() => setVoiceLanguage('zh')} />
             <SettingRadio label="英文" checked={voiceLanguage === 'en'} onPress={() => setVoiceLanguage('en')} />
-            <TouchableOpacity style={s.switchRow} onPress={() => { setVoiceOn(!voiceOn); if (voiceOn) Speech.stop(); }}>
+            <TouchableOpacity style={s.switchRow} onPress={() => { setVoiceOn(!voiceOn); if (voiceOn) voice.stop(); }}>
               <Text style={s.labelInline}>语音播报</Text>
               <View style={[s.switchTrack, voiceOn && s.switchTrackOn]}><View style={[s.switchThumb, voiceOn && s.switchThumbOn]} /></View>
             </TouchableOpacity>
