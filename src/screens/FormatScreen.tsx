@@ -13,7 +13,7 @@ import {
   buildGroupKnockout, standings,
 } from '../algorithms';
 import type { FormatNavProp } from '../navigation.types';
-import { t, useI18n } from '../i18n';
+import { t, tp, useI18n } from '../i18n';
 
 const DEFAULT_OPTIONS = {
   seed: 1, groups: 4, rounds: 5, teamSize: 4, advancePerGroup: 2, games: 10,
@@ -26,8 +26,8 @@ function labelOf(ref: Ref, players: string[], teams?: TeamDefLocal[] | null): st
   if (ref == null) return t('待定');
   if (Array.isArray(ref)) return ref.map((x) => labelOf(x as Ref, players, teams)).join(' / ');
   if (typeof ref === 'number') {
-    if (teams) return teams[ref]?.name || `队伍${ref + 1}`;
-    return players[ref] || `选手${ref + 1}`;
+    if (teams) return teams[ref]?.name || tp('队伍{n}', { n: ref + 1 });
+    return players[ref] || tp('选手{n}', { n: ref + 1 });
   }
   return String(ref);
 }
@@ -65,7 +65,7 @@ function MatchRow({ title, a, b, result, onWin, onScore, small }: MatchRowProps)
         ))}
       </View>
       {result?.scoreA != null && (
-        <Text style={styles.matchScore}>比分 {result.scoreA} : {result.scoreB}</Text>
+        <Text style={styles.matchScore}>{tp('比分{a}:{b}', { a: result.scoreA ?? 0, b: result.scoreB ?? 0 })}</Text>
       )}
     </View>
   );
@@ -116,7 +116,7 @@ export default function FormatScreen() {
     if (format.needs === 'teams') {
       const teams: TeamDefLocal[] = playersText.split('\n').map((s) => s.trim()).filter(Boolean).map((line, i) => {
         const [name, rest] = line.split(/[:：]/);
-        return { name: name?.trim() || `队伍${i + 1}`, players: (rest || '').split(/[,，、\s]+/).filter(Boolean) };
+        return { name: name?.trim() || tp('队伍{n}', { n: i + 1 }), players: (rest || '').split(/[,，、\s]+/).filter(Boolean) };
       });
       if (teams.length < 2) { Alert.alert(t('提示'), t('至少输入两支队伍，格式：队名:选手1,选手2')); return; }
       const fixture = generateFixtures('team', teams.flatMap((t) => t.players), { ...options, teams });
@@ -182,8 +182,8 @@ export default function FormatScreen() {
             {saved.map((x) => (
               <View key={x.id} style={styles.savedRow}>
                 <TouchableOpacity style={styles.savedMain} onPress={() => openSaved(x)}>
-                  <Text style={styles.savedTitle}>{x.title}</Text>
-                  <Text style={styles.savedMeta}>{x.players?.length || x.teams?.length || 0} 人 · {new Date(x.createdAt).toLocaleDateString()}</Text>
+                  <Text style={styles.savedTitle}>{t(x.title)}</Text>
+                  <Text style={styles.savedMeta}>{x.players?.length || x.teams?.length || 0} {t('人')} · {new Date(x.createdAt).toLocaleDateString()}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => {
                   Alert.alert(t('删除赛程'), t('确定删除这个赛程吗？'), [
@@ -201,8 +201,8 @@ export default function FormatScreen() {
           <View style={styles.grid}>
             {FORMATS.filter((f) => f.key !== 'quick').map((f) => (
               <TouchableOpacity key={f.key} style={styles.formatCard} onPress={() => choose(f)}>
-                <Text style={styles.formatName}>{f.name}</Text>
-                <Text style={styles.formatDesc}>{f.desc}</Text>
+                <Text style={styles.formatName}>{t(f.name)}</Text>
+                <Text style={styles.formatDesc}>{t(f.desc)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -215,8 +215,8 @@ export default function FormatScreen() {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <TouchableOpacity onPress={() => setView('list')}><Text style={styles.back}>{t("‹ 返回")}</Text></TouchableOpacity>
-        <Text style={styles.h1}>{format.name}</Text>
-        <Text style={styles.sub}>{format.desc}</Text>
+        <Text style={styles.h1}>{t(format.name)}</Text>
+        <Text style={styles.sub}>{t(format.desc)}</Text>
 
         <View style={styles.panel}>
           <Text style={styles.label}>{format.needs === 'teams' ? t('队伍与选手（每行：队名:选手1,选手2）') : t('选手名单（每行一位，顺序即种子顺序）')}</Text>
@@ -226,7 +226,7 @@ export default function FormatScreen() {
             value={playersText}
             onChangeText={setPlayersText}
             textAlignVertical="top"
-            placeholder={format.needs === 'teams' ? '一队:张三,李四\n二队:王五,赵六' : '张三\n李四\n王五'}
+            placeholder={format.needs === 'teams' ? t('队名:选手1,选手2\n队名:选手1,选手2') : t('选手1\n选手2\n选手3')}
           />
         </View>
 
@@ -292,15 +292,20 @@ export default function FormatScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <TouchableOpacity onPress={() => setView('list')}><Text style={styles.back}>{t("‹ 赛制列表")}</Text></TouchableOpacity>
       <View style={styles.detailHead}>
-        <Text style={styles.h1}>{tourney.title}</Text>
-        <Text style={styles.sub}>{players.length || teams?.length || 0} 人 · 种子 {Number(tourney.options?.seed) || 1} · 点击选手名可标记胜者</Text>
+        <Text style={styles.h1}>{t(tourney.title)}</Text>
+        <Text style={styles.sub}>{tp('{n}{unit} · {seedPart} · {markPart}', {
+          n: players.length || teams?.length || 0,
+          unit: t('人'),
+          seedPart: tp('种子{s}', { s: Number(tourney.options?.seed) || 1 }),
+          markPart: t('点击选手名可标记胜者'),
+        })}</Text>
       </View>
 
       {f.kind === 'rounds' && (
         <View style={styles.section}>
           {f.data.map((r) => (
             <View key={r.round} style={styles.panel}>
-              <Text style={styles.roundTitle}>第 {r.round} 轮</Text>
+              <Text style={styles.roundTitle}>{t(`第 ${r.round} 轮`)}</Text>
               {r.matches.map((m) => renderMatch(m))}
             </View>
           ))}
@@ -310,10 +315,10 @@ export default function FormatScreen() {
 
       {f.kind === 'teams' && (
         <View style={styles.section}>
-          <Text style={styles.hint}>固定搭档（ {(f.teams || []).map((p) => labelOf(p, players)).join(' / ')} ）</Text>
+          <Text style={styles.hint}>{tp('固定搭档（{names}）', { names: (f.teams || []).map((p) => labelOf(p, players)).join(' / ') })}</Text>
           {f.data.map((r) => (
             <View key={r.round} style={styles.panel}>
-              <Text style={styles.roundTitle}>第 {r.round} 轮</Text>
+              <Text style={styles.roundTitle}>{t(`第 ${r.round} 轮`)}</Text>
               {r.matches.map((m) => renderMatch(m))}
             </View>
           ))}
@@ -324,14 +329,14 @@ export default function FormatScreen() {
 
       {f.kind === 'rotation' && (
         <View style={styles.section}>
-          <Text style={styles.hint}>评分 {f.data.score != null ? Math.round(f.data.score) : '-'}（越低越好）· 每轮自动优化搭档与对手覆盖</Text>
+          <Text style={styles.hint}>{tp('评分{s}', { s: f.data.score != null ? Math.round(f.data.score) : '-' })}{t('（越低越好）')}{t('· 每轮自动优化搭档与对手覆盖')}</Text>
           {f.data.rounds.map((r) => (
             <View key={r.round} style={styles.panel}>
-              <Text style={styles.roundTitle}>第 {r.round} 轮</Text>
+              <Text style={styles.roundTitle}>{t(`第 ${r.round} 轮`)}</Text>
               {r.teams.map((tm, i) => (
                 <MatchRow
                   key={i}
-                  title={`场地 ${i + 1}`}
+                  title={t(`场地 ${i + 1}`)}
                   a={tm.sideA as Ref}
                   b={tm.sideB as Ref}
                   result={results[`ROT${r.round}-${i}`]}
@@ -339,7 +344,7 @@ export default function FormatScreen() {
                   onScore={() => scoreMatch(tm.sideA as Ref, tm.sideB as Ref, `ROT${r.round}-${i}`)}
                 />
               ))}
-              {r.byes.length > 0 && <Text style={styles.hint}>轮空：{r.byes.map((i) => labelOf(i, players)).join('、')}</Text>}
+              {r.byes.length > 0 && <Text style={styles.hint}>{tp('轮空：{names}', { names: r.byes.map((i) => labelOf(i, players)).join('、') })}</Text>}
             </View>
           ))}
         </View>
@@ -349,8 +354,8 @@ export default function FormatScreen() {
         <View style={styles.section}>
           {f.data.map((g) => (
             <View key={g.name} style={styles.panel}>
-              <Text style={styles.roundTitle}>{g.name}（{g.members.map((i) => labelOf(i, players)).join('、')}）</Text>
-              {g.rounds.map((r) => r.matches.map((m) => renderMatch(m, `第${r.round}轮`)))}
+              <Text style={styles.roundTitle}>{t(g.name)}（{g.members.map((i) => labelOf(i, players)).join('、')}）</Text>
+              {g.rounds.map((r) => r.matches.map((m) => renderMatch(m, t(`第${r.round}轮`))))}
             </View>
           ))}
           <TouchableOpacity style={styles.secondaryBtn} onPress={() => {
@@ -400,8 +405,8 @@ export default function FormatScreen() {
       {f.kind === 'arena' && (
         <View style={styles.section}>
           <View style={styles.panel}>
-            <Text style={styles.roundTitle}>擂台序列（{f.data.note}）</Text>
-            {f.data.matches.map((m, i) => renderMatch(m as unknown as RoundMatch, `第 ${i + 1} 局`))}
+            <Text style={styles.roundTitle}>{t('擂台序列')}（{t(f.data.note)}）</Text>
+            {f.data.matches.map((m, i) => renderMatch(m as unknown as RoundMatch, t(`第 ${i + 1} 局`)))}
           </View>
         </View>
       )}
@@ -411,12 +416,12 @@ export default function FormatScreen() {
           {f.data.ties.map((tie) => (
             <View key={tie.id} style={styles.panel}>
               <Text style={styles.roundTitle}>
-                {labelOf(tie.teamA, [], teams)} vs {labelOf(tie.teamB, [], teams)}（第 {tie.round} 轮）
+                {tp('{a} vs {b}（第{n}轮）', { a: labelOf(tie.teamA, [], teams), b: labelOf(tie.teamB, [], teams), n: tie.round })}
               </Text>
               {tie.matches.map((m) => (
                 <MatchRow
                   key={m.id}
-                  title={m.position}
+                  title={t(m.position)}
                   a={m.a as Ref}
                   b={m.b as Ref}
                   result={results[m.id]}
@@ -459,7 +464,7 @@ function Standings({ players, results }: StandingsProps) {
         <View key={r.name} style={styles.standingRow}>
           <Text style={styles.rank}>{i + 1}</Text>
           <Text style={styles.standingName}>{r.name}</Text>
-          <Text style={styles.standingStat}>{r.win}胜 {r.loss}负</Text>
+          <Text style={styles.standingStat}>{tp('{win}胜 {loss}负', { win: r.win, loss: r.loss })}</Text>
           <Text style={styles.standingDiff}>{r.diff >= 0 ? '+' : ''}{r.diff}</Text>
         </View>
       ))}
@@ -482,7 +487,7 @@ function BracketView({ fixture, results, renderMatch }: {
     <View style={styles.section}>
       {states.rounds.map((round, ri) => (
         <View key={ri} style={styles.panel}>
-          <Text style={styles.roundTitle}>{ri === states.rounds.length - 1 ? t('决赛') : `第 ${ri + 1} 轮`}</Text>
+          <Text style={styles.roundTitle}>{ri === states.rounds.length - 1 ? t('决赛') : t(`第 ${ri + 1} 轮`)}</Text>
           {round.map((m) => renderMatch(m, m.isBye ? t('轮空晋级') : m.id))}
         </View>
       ))}

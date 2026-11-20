@@ -6,7 +6,7 @@ import Hero from '../components/Hero';
 import { loadMatches, removeMatch } from '../storage';
 import type { MatchRecord } from '../storage';
 import type { HistoryNavProp } from '../navigation.types';
-import { t, useI18n } from '../i18n';
+import { t, tp, useI18n } from '../i18n';
 
 export default function HistoryScreen() {
   useI18n();   // 订阅界面语言变化
@@ -30,7 +30,7 @@ export default function HistoryScreen() {
 
   return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <Hero kicker="PLAYERS & RECORDS" title={t("球员")} lead={`交手记录 · 共 ${matches.length} 场`} />
+        <Hero kicker="PLAYERS & RECORDS" title={t("球员")} lead={tp('交手记录 · 共{n}场', { n: matches.length })} />
       {matches.map((m) => {
         const open = expanded === m.id;
         const ongoing = m.status === 'ongoing' && !!m.snapshot;
@@ -44,7 +44,7 @@ export default function HistoryScreen() {
                   <Text style={styles.ongoingTag}>{t("进行中")}</Text>
                 ) : (
                   <Text style={[styles.resultTag, m.winner === 'B' && styles.resultTagBlue]}>
-                    {m.winner === 'A' ? m.nameA : m.nameB} 胜
+                    {tp('{name}获胜', { name: m.winner === 'A' ? m.nameA : m.nameB })}
                   </Text>
                 )}
               </View>
@@ -54,7 +54,7 @@ export default function HistoryScreen() {
                 <Text style={[styles.name, styles.nameRight, !ongoing && m.winner === 'B' && styles.nameWin]}>{m.nameB}</Text>
               </View>
               {ongoing && snap && (
-                <Text style={styles.ongoingHint}>第 {snap.gameHistory.length + 1} 局 · 当前 {snap.scoreA} : {snap.scoreB}</Text>
+                <Text style={styles.ongoingHint}>{tp('第{n}局·当前{a}:{b}', { n: snap.gameHistory.length + 1, a: snap.scoreA, b: snap.scoreB })}</Text>
               )}
               {!ongoing && <Text style={styles.detailHint}>{open ? t('收起详情 ▲') : t('查看详情 ▼')}</Text>}
             </TouchableOpacity>
@@ -78,7 +78,7 @@ export default function HistoryScreen() {
               <View style={styles.detail}>
                 {(m.games || []).map((g, i) => (
                   <View key={i} style={styles.gameRow}>
-                    <Text style={styles.gameIndex}>第 {g.index || i + 1} 局</Text>
+                    <Text style={styles.gameIndex}>{tp('第{n}局', { n: g.index || i + 1 })}</Text>
                     <Text style={styles.gameScore}>{g.a} : {g.b}</Text>
                     <Text style={styles.gameWinner}>{g.winner === 'A' ? m.nameA : m.nameB}</Text>
                   </View>

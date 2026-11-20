@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { DerivedTheme } from '../scoreThemes';
 import { SCORE_FONT } from '../theme';
 import { ClickHandHint } from './ClickHandHint';
-import { t, useI18n } from '../i18n';
+import { t, tp, useI18n } from '../i18n';
 
 export type BSide = 'A' | 'B';
 export type BCallout = '' | '局点' | '赛点' | '胜';
@@ -112,7 +112,7 @@ export function BigscreenOverlay(props: BigscreenOverlayProps) {
         style={{ flex: 1 }}
         activeOpacity={0.92}
         onPress={() => onAddPoint(side)}
-        accessibilityLabel={showWinHint ? t('点击开始下一局') : `${name} 加一分`}
+        accessibilityLabel={showWinHint ? t('点击开始下一局') : tp('{name} 加一分', { name })}
       >
         <LinearGradient colors={grad} style={bs.card}>
           {/* 顶部：球员名 + 发球指示点 + 局分 */}
@@ -141,7 +141,7 @@ export function BigscreenOverlay(props: BigscreenOverlayProps) {
           <View style={bs.cardFoot}>
             {!!callout && (
               <View style={bs.callout}>
-                <Text style={[bs.calloutText, { color: calloutColor, fontSize: Math.min(W * 0.02, H * 0.045) }]}>{callout}</Text>
+                <Text style={[bs.calloutText, { color: calloutColor, fontSize: Math.min(W * 0.02, H * 0.045) }]}>{t(callout)}</Text>
               </View>
             )}
             <TouchableOpacity
@@ -175,7 +175,7 @@ export function BigscreenOverlay(props: BigscreenOverlayProps) {
           <Text style={[bs.clock, { fontSize: Math.min(W * 0.02, H * 0.042) }]}>{fmtTime(matchSeconds)}</Text>
           {pauseActive && (
             <View style={bs.pauseBadge}>
-              <Text style={[bs.pauseText, { fontSize: Math.min(W * 0.018, H * 0.038) }]}>暂停中 {pauseSeconds}s</Text>
+              <Text style={[bs.pauseText, { fontSize: Math.min(W * 0.018, H * 0.038) }]}>{tp('暂停中{n}s', { n: pauseSeconds })}</Text>
             </View>
           )}
         </View>

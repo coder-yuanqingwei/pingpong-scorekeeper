@@ -195,7 +195,7 @@ const EN: Record<string, string> = {
   "在轮换发球法生效期间，接发方对每一次发球正确还击累计达 13 次，接发方即得 1 分；计数到 13 后重置。": "While expedite is active, the receiver scores 1 point after 13 correct returns; counter resets at 13.",
   "知道了": "Got it",
   "投屏到电视": "Cast to TV",
-  "① 手机下拉快捷设置 → 打开「投屏 / 屏幕镜像」\\n② 在设备列表选择你的电视（系统自动发现局域网电视）\\n③ 镜像成功后电视与手机同步显示大屏画面：\\n     点击左/右半屏 = 对应队伍 +1，卡片下方 − = 撤销\\n     右上角 ✕ 双击退出大屏模式": "① Open Quick Settings → turn on Cast / Screen mirror\n② Select your TV (system discovers TVs on the network)\n③ Once mirrored, TV shows the big-screen view:\n   Tap left/right half = +1 for that side, − below card = undo\n   Tap ✕ top-right twice to exit",
+  "① 手机下拉快捷设置 → 打开「投屏 / 屏幕镜像」\n② 在设备列表选择你的电视（系统自动发现局域网电视）\n③ 镜像成功后电视与手机同步显示大屏画面：\n     点击左/右半屏 = 对应队伍 +1，卡片下方 − = 撤销\n     右上角 ✕ 双击退出大屏模式": "① Open Quick Settings → turn on Cast / Screen mirror\n② Select your TV (system discovers TVs on the network)\n③ Once mirrored, TV shows the big-screen view:\n   Tap left/right half = +1 for that side, − below card = undo\n   Tap ✕ top-right twice to exit",
   "若搜索不到电视，请在电视设置中打开「无线投屏 / Miracast」。": "If no TV found, enable Wireless display / Miracast in TV settings.",
   "查看规则 ⓘ": "View rules ⓘ",
   "蓝方": "Blue",
@@ -273,11 +273,160 @@ const EN: Record<string, string> = {
   '获胜': 'wins',
   '界面语言': 'App Language',
   '请求暂停': 'called timeout',
+  // —— 数据常量：赛制编排（FORMATS.name/desc）——
+  '快速计分': 'Quick Score',
+  '两人对打，边打边记': 'Two players, score as you go',
+  '单打循环赛': 'Singles Round-Robin',
+  '人人相遇，按胜场排名': 'Everyone meets, ranked by wins',
+  '固定双打循环赛': 'Fixed Doubles Round-Robin',
+  '搭档固定，循环对阵': 'Fixed partners, round-robin',
+  '淘汰赛': 'Knockout',
+  '种子排位，单败出局': 'Seeded, single elimination',
+  '多人轮转赛': 'Multi-player Rotation',
+  '优化搭档/对手覆盖': 'Optimized partner/opponent coverage',
+  '混双轮转赛': 'Mixed Doubles Rotation',
+  '男女搭档轮换上场': 'Men/women partners rotate in',
+  '小组循环+淘汰': 'Group Stage + Knockout',
+  '分组循环，交叉出线': 'Group round-robin, cross-over advance',
+  '资格赛': 'Qualifier',
+  '淘汰争夺正赛名额': 'Knockout for main-draw spots',
+  '擂台赛': 'King of the Court',
+  '守擂挑战，连续作战': 'Defend the throne, play on',
+  '团体赛': 'Team Event',
+  '队对抗，多场次计分': 'Team vs team, multiple ties',
+  // —— 数据常量：22 个计分主题名 ——
+  '经典蓝红': 'Classic Blue-Red',
+  '2024巴黎奥运会': 'Paris 2024 Olympics',
+  '2020东京奥运会': 'Tokyo 2020 Olympics',
+  '2016里约奥运会': 'Rio 2016 Olympics',
+  '2012伦敦奥运会': 'London 2012 Olympics',
+  '2008北京奥运会': 'Beijing 2008 Olympics',
+  '2004雅典奥运会': 'Athens 2004 Olympics',
+  '2000悉尼奥运会': 'Sydney 2000 Olympics',
+  '1996亚特兰大奥运会': 'Atlanta 1996 Olympics',
+  '1992巴塞罗那奥运会': 'Barcelona 1992 Olympics',
+  '1988汉城奥运会': 'Seoul 1988 Olympics',
+  '皇家 × 流金': 'Royal × Gilded',
+  '靛紫 × 玫红': 'Indigo × Rose',
+  '岩灰 × 暖金': 'Slate × Warm Gold',
+  '薄荷 × 珊瑚': 'Mint × Coral',
+  '深海 × 晚霞': 'Deep Sea × Sunset',
+  '青绿 × 琥珀': 'Teal × Amber',
+  '午夜 × 青电': 'Midnight × Cyan',
+  '暮紫 × 丁香': 'Dusk Violet × Lilac',
+  '铬银 × 玫影': 'Chrome × Rose',
+  'WTT冠军赛': 'WTT Champions',
+  'WTT联盟总决赛': 'WTT Finals',
+  // —— 数据常量：自由赛制选项 / 让分 / 组别 ——
+  '更多': 'More',
+  '7局4胜': 'Best of 7 (win 4)',
+  '9局5胜': 'Best of 9 (win 5)',
+  '11局6胜': 'Best of 11 (win 6)',
+  '13局7胜': 'Best of 13 (win 7)',
+  '15局8胜': 'Best of 15 (win 8)',
+  '男单': "Men's Singles",
+  '女单': "Women's Singles",
+  '男双': "Men's Doubles",
+  '混双': 'Mixed Doubles',
+  '女双': "Women's Doubles",
+  '不让分': 'No handicap',
+  '胜者守擂，败者排至队尾': 'Winner stays, loser to queue end',
+  '每局全员轮换': 'All players rotate each game',
+  '获胜晋级，最终轮胜者获得正赛名额': 'Win to advance; final-round winner earns main-draw spot',
+  // —— JSX 内嵌标签词 ——
+  '姓名字号': 'Name font',
+  '局比分字号': 'Game-score font',
+  '局内小比分字号': 'Rally-score font',
+  '人': 'players',
+  '种子': 'Seed',
+  '点击选手名可标记胜者': 'Tap a player name to mark the winner',
+  '比分': 'Score',
+  '固定搭档': 'Fixed partners',
+  '评分': 'Score',
+  '（越低越好）': '(lower is better)',
+  '· 每轮自动优化搭档与对手覆盖': '· partner/opponent coverage optimized each round',
+  '轮空': 'Bye',
+  '擂台序列': 'King-of-the-court order',
+  '负': 'losses',
+  '胜场': 'wins',
+  // —— 参数化模板（配合 tp）——
+  '队伍{n}': 'Team {n}',
+  '选手{n}': 'Player {n}',
+  '比分{a}:{b}': 'Score {a} : {b}',
+  '人 · 种子{s}': 'players · Seed {s}',
+  '固定搭档（{names}）': 'Fixed partners ({names})',
+  '评分{s}': 'Score {s}',
+  '轮空：{names}': 'Bye: {names}',
+  '第{n}阶段': 'Stage {n}',
+  '第{n}单打': 'Singles {n}',
+  '第{n}双打': 'Doubles {n}',
+  'vs{name}（第{n}轮）': 'vs {name} (Round {n})',
+  '{win}胜 {loss}负': '{win}W {loss}L',
+  '第{n}局·当前{a}:{b}': 'Game {n} · now {a}:{b}',
+  '第{n}局': 'Game {n}',
+  '{name} {verb}': '{name} {verb}',
+  '{name}获胜': '{name} wins',
+  '{name}拿下本局': '{name} takes the game',
+  '{name}请求暂停': '{name} called timeout',
+  '{name}发球': '{name} to serve',
+  '{name}先发球': '{name} serves first',
+  '{name}先发': '{name} serves first',
+  '{side}选手': '{side} player',
+  '姓名字号{n}': 'Name font {n}',
+  '局比分字号{n}%': 'Game-score font {n}%',
+  '局内小比分字号{n}%': 'Rally-score font {n}%',
+  '秒表{time}': 'Stopwatch {time}',
+  '抛硬币{side}': 'Coin toss {side}',
+  '{a}分　|　{b}分': '{a} pts | {b} pts',
+  '暂停中{n}s': 'Paused {n}s',
+  '交手记录 · 共{n}场': 'Head-to-head · {n} matches',
+  '种子{s}': 'Seed {s}',
+  '{n}{unit} · {seedPart} · {markPart}': '{n} {unit} · {seedPart} · {markPart}',
+  '{a} vs {b}（第{n}轮）': '{a} vs {b} (Round {n})',
+  '队名:选手1,选手2\n队名:选手1,选手2': 'Team:Player1,Player2\nTeam:Player1,Player2',
+  '选手1\n选手2\n选手3': 'Player1\nPlayer2\nPlayer3',
+  '{a}局{b}胜': '{a} games, win {b}',
+  '{n}分': '{n} pts',
+  '{name} 加一分': '{name} +1 point',
+  '{name}获胜！': '{name} wins!',
+  '第{n}局 {a}:{b}': 'Game {n} {a}:{b}',
 };
+
+/** 动态标签的模式化翻译：中文原文带数字/变量时（如「第3局」「7局4胜」），精确查表失败后按规则翻译。
+ *  仅在 en 且精确 key 未命中时启用，避免影响静态词条。 */
+const PATTERNS: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
+  [/^第\s*(\d+)\s*阶段（5分制）$/, (m) => `Stage ${m[1]} (5-point)`],
+  [/^第\s*(\d+)\s*[单打]+$/, (m) => `Singles ${m[1]}`],
+  [/^第\s*(\d+)\s*双打$/, (m) => `Doubles ${m[1]}`],
+  [/^第\s*([A-Za-z])\s*组$/, (m) => `Group ${m[1]}`],
+  [/^第\s*(\d+)\s*局$/, (m) => `Game ${m[1]}`],
+  [/^第\s*(\d+)\s*轮$/, (m) => `Round ${m[1]}`],
+  [/^第\s*(\d+)\s*局\s*·\s*当前\s*(\d+)\s*:\s*(\d+)$/, (m) => `Game ${m[1]} · now ${m[2]}:${m[3]}`],
+  [/^(\d+)\s*局\s*(\d+)\s*胜$/, (m) => `Best of ${m[1]}, win ${m[2]}`],
+  [/^(\d+)\s*胜\s*(\d+)\s*负$/, (m) => `${m[1]}W ${m[2]}L`],
+  [/^(\d+)\s*分$/, (m) => `${m[1]} pts`],
+  [/^让\s*(\d+)\s*局$/, (m) => `Handicap ${m[1]} game(s)`],
+  [/^场地\s*(\d+)$/, (m) => `Court ${m[1]}`],
+  [/^自定义\s*\(\s*(\d+)\s*分\s*\)$/, (m) => `Custom (${m[1]} pts)`],
+  [/^暂停中\s*(\d+)s$/, (m) => `Paused ${m[1]}s`],
+];
+
+/** 参数化翻译：模板用 {key} 占位，英文模板可重排语序；语言切换后由调用组件的重渲染刷新。 */
+export function tp(template: string, vars: Record<string, string | number>): string {
+  const base = currentLang === 'en' ? (EN[template] ?? template) : template;
+  return base.replace(/\{(\w+)\}/g, (full, k: string) => (k in vars ? String(vars[k]) : full));
+}
 
 let currentLang: Lang = 'zh';
 export function t(zh: string): string {
-  return currentLang === 'en' ? (EN[zh] ?? zh) : zh;
+  if (currentLang !== 'en') return zh;
+  if (zh in EN) return EN[zh];
+  // 精确查表未命中：尝试动态标签模式（第N局 / 7局4胜 / 让2局 等）
+  for (const [re, fn] of PATTERNS) {
+    const mm = zh.match(re);
+    if (mm) return fn(mm);
+  }
+  return zh;
 }
 /** 非 React 环境也可用（传入显式语言）。 */
 export function translate(zh: string, lang: Lang): string {

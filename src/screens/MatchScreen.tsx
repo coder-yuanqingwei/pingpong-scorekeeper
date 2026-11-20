@@ -25,7 +25,7 @@ import {
 import SmallScoreDetailPanel, { ScoreCell } from '../components/SmallScoreDetailPanel';
 import LiveStatsSheet, { LiveStatRow } from '../components/LiveStatsSheet';
 import { createEmpty, recordPoint, finalizeGame, type MatchStats } from '../matchStats';
-import { t, useI18n, type Lang } from '../i18n';
+import { t, tp, useI18n, type Lang } from '../i18n';
 
 
 /** 原型 score-font-slider：横向刻度滑块，RN 无原生 Slider，用 PanResponder 复刻。
@@ -177,7 +177,7 @@ function CalloutBubble({ text, visible, color, fontSize }: {
         shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 3, elevation: 3,
       }}
     >
-      <Text style={{ color, fontSize, fontWeight: '800', lineHeight: fontSize * 1.2 }}>{text}</Text>
+      <Text style={{ color, fontSize, fontWeight: '800', lineHeight: fontSize * 1.2 }}>{t(text)}</Text>
     </Animated.View>
   );
 }
@@ -201,7 +201,7 @@ function fmtTime(total: number) {
 function formatLabel(gamesToWin: number): string {
   if (gamesToWin >= 9999) return t('自由');
   const map: Record<number, string> = { 1: t('一局一胜'), 2: t('三局两胜'), 3: t('五局三胜') };
-  return map[gamesToWin] ?? `${2 * gamesToWin - 1}${t('局')}${gamesToWin}${t('胜')}`;
+  return map[gamesToWin] ?? tp('{a}局{b}胜', { a: 2 * gamesToWin - 1, b: gamesToWin });
 }
 
 /** 原型 buildSmallScoreRuleSummary 乒乓分支的规则摘要（用于「各局比分」弹层头部）。
@@ -210,8 +210,8 @@ function buildRuleSummary(cfg: MatchConfig): string {
   const parts = [
     cfg.free
       ? t('自由（封顶100局）')
-      : `${Math.max(1, 2 * cfg.gamesToWin - 1)}${t('局')}${Math.max(1, cfg.gamesToWin)}${t('胜')}`,
-    `${Math.max(1, cfg.pointsToWin)}${t('分')}`,
+      : tp('{a}局{b}胜', { a: Math.max(1, 2 * cfg.gamesToWin - 1), b: Math.max(1, cfg.gamesToWin) }),
+    tp('{n}分', { n: Math.max(1, cfg.pointsToWin) }),
     cfg.winByTwo ? t('净胜2分') : t('无加分'),
   ];
   return parts.join(' · ');
@@ -985,7 +985,7 @@ export default function MatchScreen() {
     setCoinSide(side);
     setServe(side); setStartServer(side);
     speak(`${side === 'A' ? cfg.nameA : cfg.nameB} ${t('先发')}`);
-    Alert.alert(t('抛硬币'), `${side === 'A' ? t('蓝方') : t('红方')} 先发球`);
+    Alert.alert(t('抛硬币'), tp('{name}先发球', { name: side === 'A' ? t('蓝方') : t('红方') }));
   };
 
   // 原版字号配置：局比分字号 100%=基准，局内小比分字号 100%=基准
@@ -1309,7 +1309,7 @@ export default function MatchScreen() {
           {/* 界面语言：仅切换屏幕文字，与控制录音的「播报语言」独立 */}
           <View style={s.gridCell}>
             <Text style={s.groupTitle}>{t("界面语言")}</Text>
-            <SettingRadio label="中文" checked={uiLang === 'zh'} onPress={() => setUiLang('zh' as Lang)} />
+            <SettingRadio label={t('中文')} checked={uiLang === 'zh'} onPress={() => setUiLang('zh' as Lang)} />
             <SettingRadio label="English" checked={uiLang === 'en'} onPress={() => setUiLang('en' as Lang)} />
           </View>
         </View>
@@ -1318,13 +1318,13 @@ export default function MatchScreen() {
         <View style={s.gridMiddle}>
           <View style={s.fontCell}>
             <Text style={s.groupTitle}>{t("字体调整")}</Text>
-            <Text style={s.sliderCaption}>姓名字号 {playerNameFontRpx}</Text>
+            <Text style={s.sliderCaption}>{tp('姓名字号{n}', { n: playerNameFontRpx })}</Text>
             <RangeSlider value={playerNameFontRpx} min={14} max={34} step={1}
               onChanging={setPlayerNameFontRpx} onChange={setPlayerNameFontRpx} />
-            <Text style={s.sliderCaption}>局比分字号 {gameScoreFontScalePct}%</Text>
+            <Text style={s.sliderCaption}>{tp('局比分字号{n}%', { n: gameScoreFontScalePct })}</Text>
             <RangeSlider value={gameScoreFontScalePct} min={70} max={130} step={5}
               onChanging={setGameScoreFontScalePct} onChange={setGameScoreFontScalePct} />
-            <Text style={s.sliderCaption}>局内小比分字号 {rallyScoreFontScalePct}%</Text>
+            <Text style={s.sliderCaption}>{tp('局内小比分字号{n}%', { n: rallyScoreFontScalePct })}</Text>
             <RangeSlider value={rallyScoreFontScalePct} min={70} max={130} step={5}
               onChanging={setRallyScoreFontScalePct} onChange={setRallyScoreFontScalePct} />
           </View>
@@ -1348,7 +1348,7 @@ export default function MatchScreen() {
               <View style={s.quickOps}>
                 {stopwatchFeatureOpen && (
                   <View style={s.quickOpItem}>
-                    <Text style={s.quickOpLabel}>秒表 {stopwatchDisplay}</Text>
+                    <Text style={s.quickOpLabel}>{tp('秒表{time}', { time: stopwatchDisplay })}</Text>
                     <TouchableOpacity style={s.quickOpBtn} onPress={onStopwatchToggle}>
                       <Text style={s.quickOpBtnText}>{stopwatchRunning ? t('暂停') : t('开始')}</Text>
                     </TouchableOpacity>
@@ -1359,7 +1359,7 @@ export default function MatchScreen() {
                 )}
                 {coinWidgetOpen && (
                   <View style={s.quickOpItem}>
-                    <Text style={s.quickOpLabel}>抛硬币 {coinSide ? (coinSide === 'A' ? t('· 蓝先发') : t('· 红先发')) : ''}</Text>
+                    <Text style={s.quickOpLabel}>{tp('抛硬币{side}', { side: coinSide ? (coinSide === 'A' ? t('· 蓝先发') : t('· 红先发')) : '' })}</Text>
                     <TouchableOpacity style={s.quickOpBtn} onPress={tossCoin}>
                       <Text style={s.quickOpBtnText}>{t("抛")}</Text>
                     </TouchableOpacity>
@@ -1394,18 +1394,18 @@ export default function MatchScreen() {
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.themeRow}>
-          {THEMES.map((t) => (
+          {THEMES.map((th) => (
             <TouchableOpacity
-              key={t.id}
-              style={[s.themeCard, themeId === t.id && s.themeCardOn]}
-              onPress={() => selectTheme(t.id)}
+              key={th.id}
+              style={[s.themeCard, themeId === th.id && s.themeCardOn]}
+              onPress={() => selectTheme(th.id)}
             >
               <View style={s.themeSwatches}>
-                <LinearGradient colors={t.gradHome} style={s.themeSwatchBig} />
-                <LinearGradient colors={t.gradAway} style={s.themeSwatchBig} />
+                <LinearGradient colors={th.gradHome} style={s.themeSwatchBig} />
+                <LinearGradient colors={th.gradAway} style={s.themeSwatchBig} />
               </View>
-              <Text numberOfLines={2} style={[s.themeCardName, themeId === t.id && s.themeCardNameOn]}>{t.name}</Text>
-              {t.vipOnly && <View style={s.themeVipBadge}><Text style={s.themeVipText}>VIP</Text></View>}
+              <Text numberOfLines={2} style={[s.themeCardName, themeId === th.id && s.themeCardNameOn]}>{t(th.name)}</Text>
+              {th.vipOnly && <View style={s.themeVipBadge}><Text style={s.themeVipText}>VIP</Text></View>}
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -1419,7 +1419,7 @@ export default function MatchScreen() {
         <View style={s.optRow}>
           {[1, 2, 3].map((n) => (
             <TouchableOpacity key={n} style={[s.opt, cfg.gamesToWin === n && !cfg.free && s.optOn]} onPress={() => setCfg({ ...cfg, gamesToWin: n, free: false })}>
-              <Text style={[s.optText, cfg.gamesToWin === n && s.optTextOn]}>{2 * n - 1}局{n}胜</Text>
+              <Text style={[s.optText, cfg.gamesToWin === n && s.optTextOn]}>{tp('{a}局{b}胜', { a: 2 * n - 1, b: n })}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -1427,7 +1427,7 @@ export default function MatchScreen() {
         <View style={s.optRow}>
           {[7, 11, 15, 21].map((n) => (
             <TouchableOpacity key={n} style={[s.opt, cfg.pointsToWin === n && s.optOn]} onPress={() => setCfg({ ...cfg, pointsToWin: n })}>
-              <Text style={[s.optText, cfg.pointsToWin === n && s.optTextOn]}>{n}分</Text>
+              <Text style={[s.optText, cfg.pointsToWin === n && s.optTextOn]}>{tp('{n}分', { n })}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -1445,9 +1445,9 @@ export default function MatchScreen() {
           <Text style={s.empty}>{t("还没有完成任何一局")}</Text>
         ) : gameHistory.map((g) => (
           <View key={g.index} style={s.recordRow}>
-            <Text style={s.recordIndex}>第 {g.index} 局</Text>
+            <Text style={s.recordIndex}>{tp('第{n}局', { n: g.index })}</Text>
             <Text style={[s.recordScore, g.winner === 'A' ? { color: '#4d9bff' } : { color: '#ff6b6b' }]}>{g.a} : {g.b}</Text>
-            <Text style={s.recordWinner}>{g.winner === 'A' ? cfg.nameA : cfg.nameB} 胜</Text>
+            <Text style={s.recordWinner}>{tp('{name}获胜', { name: g.winner === 'A' ? cfg.nameA : cfg.nameB })}</Text>
           </View>
         ))}
       </Sheet>
@@ -1465,7 +1465,7 @@ export default function MatchScreen() {
           <View style={[s.bar, { width: `${(scoreA / Math.max(1, scoreA + scoreB)) * 100}%`, backgroundColor: C_BLUE }]} />
           <View style={[s.bar, { width: `${(scoreB / Math.max(1, scoreA + scoreB)) * 100}%`, backgroundColor: RED }]} />
         </View>
-        <Text style={s.barLegend}>{cfg.nameA} {scoreA} 分　|　{cfg.nameB} {scoreB} 分</Text>
+        <Text style={s.barLegend}>{tp('{a}分　|　{b}分', { a: `${cfg.nameA} ${scoreA}`, b: `${cfg.nameB} ${scoreB}` })}</Text>
       </Sheet>
 
       {/* 工具栏第4按钮：原型 onOpenSmallScoreDetail 小比分详情弹层（running/end 两态） */}
@@ -1511,11 +1511,11 @@ export default function MatchScreen() {
         <View style={styles.modalMask}>
           <View style={styles.modalCard}>
             <Text style={styles.resultEmoji}>🏆</Text>
-            <Text style={styles.resultTitle}>{result ? (result.winner === 'A' ? cfg.nameA : cfg.nameB) : ''} 获胜！</Text>
+            <Text style={styles.resultTitle}>{result ? tp('{name}获胜！', { name: result.winner === 'A' ? cfg.nameA : cfg.nameB }) : ''}</Text>
             <Text style={styles.resultScore}>
               {result?.games.filter((g) => g.winner === 'A').length} : {result?.games.filter((g) => g.winner === 'B').length}
             </Text>
-            <Text style={styles.resultDetail}>{result?.games.map((g, i) => `${t('第')}${i + 1}${t('局')} ${g.a}:${g.b}`).join('   ')}</Text>
+            <Text style={styles.resultDetail}>{result?.games.map((g, i) => tp('第{n}局 {a}:{b}', { n: i + 1, a: g.a, b: g.b })).join('   ')}</Text>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalBtn} onPress={goBack}><Text style={styles.modalBtnText}>{t("返回首页")}</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={resetMatchState}>
@@ -1581,7 +1581,7 @@ export default function MatchScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.resultTitle}>{t("投屏到电视")}</Text>
             <Text style={tvGuideText}>
-              {'① 手机下拉快捷设置 → 打开「投屏 / 屏幕镜像」\n② 在设备列表选择你的电视（系统自动发现局域网电视）\n③ 镜像成功后电视与手机同步显示大屏画面：\n     点击左/右半屏 = 对应队伍 +1，卡片下方 − = 撤销\n     右上角 ✕ 双击退出大屏模式'}
+              {t('① 手机下拉快捷设置 → 打开「投屏 / 屏幕镜像」\n② 在设备列表选择你的电视（系统自动发现局域网电视）\n③ 镜像成功后电视与手机同步显示大屏画面：\n     点击左/右半屏 = 对应队伍 +1，卡片下方 − = 撤销\n     右上角 ✕ 双击退出大屏模式')}
             </Text>
             <Text style={tvGuideTip}>{t("若搜索不到电视，请在电视设置中打开「无线投屏 / Miracast」。")}</Text>
             <View style={[styles.modalActions, { justifyContent: 'center' }]}>

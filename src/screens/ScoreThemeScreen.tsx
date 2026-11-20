@@ -279,7 +279,7 @@ function ThemeRow({ theme, active, onPress, onDelete }: {
         <LinearGradient colors={theme.gradHome} style={st.themeSwatch} />
         <LinearGradient colors={theme.gradAway} style={st.themeSwatch} />
       </View>
-      <Text numberOfLines={2} style={st.themeName}>{theme.name}</Text>
+      <Text numberOfLines={2} style={st.themeName}>{t(theme.name)}</Text>
     </TouchableOpacity>
   );
 }

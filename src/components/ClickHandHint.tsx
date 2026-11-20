@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { TouchableOpacity, Animated, Easing } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
+import { t } from '../i18n';
 
 /** 原版 pages/score/assets/imgs/click_hand.svg + score-click-hint：
  *  局分到「胜」后覆盖在赢家「+」按钮上的点击手势，52rpx→26dp。
@@ -23,7 +24,7 @@ export function ClickHandHint({ size = 26, onPress }: { size?: number; onPress: 
   return (
     <TouchableOpacity
       accessibilityRole="button"
-      accessibilityLabel="点击开始下一局"
+      accessibilityLabel={t('点击开始下一局')}
       onPress={onPress}
       activeOpacity={0.85}
       style={{

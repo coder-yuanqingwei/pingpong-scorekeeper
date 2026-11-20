@@ -19,7 +19,7 @@ import {
   CUSTOM_SCORE_DEFAULT, CUSTOM_SCORE_SELECTOR_RANGE,
   customScoreFromPickerIndex, customScoreIndexOf, normalizeCustomScore,
 } from '../customScoreOptions';
-import { t, useI18n } from '../i18n';
+import { t, tp, useI18n } from '../i18n';
 
 type ScoreRoute = RouteProp<RootTabParamList, '首页'>;
 
@@ -85,8 +85,8 @@ export default function ScoreScreen() {
         setCurrentCustomScore(s.pointsToWin);
         setIsCustomSelected(true);
       }
-      if (s.playerA && s.playerA !== t('选手 A')) setNameA(s.playerA);
-      if (s.playerB && s.playerB !== t('选手 B')) setNameB(s.playerB);
+      if (s.playerA && s.playerA !== '选手 A') setNameA(s.playerA);
+      if (s.playerB && s.playerB !== '选手 B') setNameB(s.playerB);
     });
     const preset = route.params?.preset;
     if (preset) {
@@ -205,7 +205,7 @@ export default function ScoreScreen() {
               style={styles.radioLabel}
               numberOfLines={1}
             >
-              {isFree ? freeGamesRadioLabelFromIndex(freeIdx) : FREE_GAMES_IDLE_LABEL}
+              {t(isFree ? freeGamesRadioLabelFromIndex(freeIdx) : FREE_GAMES_IDLE_LABEL)}
             </Text>
           </TouchableOpacity>
 
@@ -227,7 +227,7 @@ export default function ScoreScreen() {
           >
             <RadioDot on={isCustomSelected} />
             <Text style={styles.radioLabel} numberOfLines={1}>
-              {isCustomSelected ? `自定义(${pointsToWin}分)` : `自定义(${currentCustomScore}分)`}
+              {t(isCustomSelected ? `自定义(${pointsToWin}分)` : `自定义(${currentCustomScore}分)`)}
             </Text>
           </TouchableOpacity>
 
@@ -258,8 +258,8 @@ export default function ScoreScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        {nameA !== t('蓝方') && <Text style={styles.playerChosen}>蓝方选手：{nameA}</Text>}
-        {nameB !== t('红方') && <Text style={styles.playerChosen}>红方选手：{nameB}</Text>}
+        {nameA !== t('蓝方') && <Text style={styles.playerChosen}>{tp('{side}选手', { side: t('蓝方') })}：{nameA}</Text>}
+        {nameB !== t('红方') && <Text style={styles.playerChosen}>{tp('{side}选手', { side: t('红方') })}：{nameB}</Text>}
 
         {/* 开始比赛 */}
         <View style={styles.startRow}>
@@ -325,7 +325,7 @@ export default function ScoreScreen() {
                       style={[styles.ddItemText, curOn && curIdx === i && styles.ddItemTextOn]}
                       numberOfLines={1}
                     >
-                      {opt}
+                      {t(opt)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -383,7 +383,7 @@ export default function ScoreScreen() {
       <Modal visible={!!playerModal} transparent animationType="fade" onRequestClose={() => setPlayerModal(null)}>
         <View style={styles.modalMask}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{playerModal === 'A' ? t('蓝方') : t('红方')}选手</Text>
+            <Text style={styles.modalTitle}>{tp('{side}选手', { side: playerModal === 'A' ? t('蓝方') : t('红方') })}</Text>
             <TextInput style={styles.modalInput} autoFocus value={playerDraft} onChangeText={setPlayerDraft} onSubmitEditing={commitPlayer} />
             <TouchableOpacity style={styles.modalOk} onPress={commitPlayer}>
               <Text style={styles.modalOkText}>{t("确定")}</Text>
