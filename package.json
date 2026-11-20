@@ -8,7 +8,7 @@
     "android": "expo start --android -c",
     "web": "expo start --web -c",
     "typecheck": "tsc --noEmit",
-    "test:algorithms": "tsx test-algorithms.ts"
+    "test:algorithms": "tsx test-algorithms.ts && tsx test-pingpong.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~58.0.17",
@@ -21,7 +21,6 @@
     "expo-keep-awake": "~58.0.4",
     "expo-linear-gradient": "~58.0.4",
     "expo-screen-orientation": "~58.0.4",
-    "expo-speech": "~58.0.4",
     "expo-status-bar": "~58.0.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",

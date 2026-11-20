@@ -8,11 +8,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { MatchNavProp, MatchRouteProp, MatchConfig } from '../navigation.types';
 import { SCORE_FONT } from '../theme';
-import { appendMatch, upsertOngoingMatch, completeMatch } from '../storage';
+import { appendMatch, upsertOngoingMatch, completeMatch, ongoingMatchId } from '../storage';
 import type { GameRecord, MatchSnapshot } from '../storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Svg, Path } from 'react-native-svg';
-import { THEMES, shade, readThemeId, writeThemeId, resolveTheme } from '../scoreThemes';
+import { THEMES, readThemeId, resolveTheme } from '../scoreThemes';
+import {
+  otherSide as other, serverAt, startServerFromServe, nextGameStartServer, computeCallouts,
+  type Side, type Callout,
+} from '../algorithms/pingpong';
 import { ClickHandHint } from '../components/ClickHandHint';
 import { BigscreenOverlay } from '../components/BigscreenOverlay';
 import {
@@ -21,8 +25,6 @@ import {
 import SmallScoreDetailPanel, { ScoreCell } from '../components/SmallScoreDetailPanel';
 import LiveStatsSheet, { LiveStatRow } from '../components/LiveStatsSheet';
 import { createEmpty, recordPoint, finalizeGame, type MatchStats } from '../matchStats';
-
-type Side = 'A' | 'B';
 
 
 /** 原型 score-font-slider：横向刻度滑块，RN 无原生 Slider，用 PanResponder 复刻。
@@ -77,7 +79,6 @@ const sliderStyles = StyleSheet.create({
 const C_BLUE = THEMES[0].home;
 const RED = THEMES[0].away;
 const GREEN = '#09a34a';
-const other = (s: Side): Side => (s === 'A' ? 'B' : 'A');
 
 /** 原版 scoreFlip* 翻页规格：id 递增触发，old/new 为翻页前后分数，up=true 加分（从下往上翻） */
 interface FlipSpec { id: number; old: number; up: boolean; duration?: number; instant?: boolean }
@@ -180,67 +181,12 @@ function CalloutBubble({ text, visible, color, fontSize }: {
   );
 }
 
-/** 与计分算法一致：按发球间隔/局点规则推导当前发球方
- *  原版 pingpong_rules.js o()：deuce 或 expedite → 每分换发(total%2)，否则每 interval 分换发 */
-function serverAt(
-  scoreA: number, scoreB: number, start: Side, interval: number,
-  target: number, winByTwo: boolean, expedite = false,
-): Side {
-  const total = scoreA + scoreB;
-  const deuce = winByTwo && scoreA >= target - 1 && scoreB >= target - 1;
-  if (deuce || expedite) {
-    return total % 2 === 0 ? start : other(start);   // 局末/轮换发球法：每分换发
-  }
-  return Math.floor(total / Math.max(1, interval)) % 2 === 0 ? start : other(start);
-}
+/** 与计分算法一致：按发球间隔/局点规则推导当前发球方、局胜负、callout 已迁至 algorithms/pingpong.ts */
 
-/** 原版 pingpongGameStartServeHomeFromState：从"当前比分 + 期望当前发球方"反推本局首发基准。
- *  用于手动换发 / 开关轮换发球法时固定 gameStartServeHome。 */
-function startServerFromServe(
-  a: number, b: number, interval: number, target: number,
-  winByTwo: boolean, currentServe: Side, expedite: boolean,
-): Side {
-  return serverAt(a, b, 'A', interval, target, winByTwo, expedite) === currentServe ? 'A' : 'B';
-}
-
-/** 原版 @467834：下一局首发 g = (homeGamesWon + awayGamesWon) % 2 == 0 ? home : away */
-function nextGameStartServer(gamesA: number, gamesB: number): Side {
-  return (gamesA + gamesB) % 2 === 0 ? 'A' : 'B';
-}
-
-type Callout = '' | '局点' | '赛点' | '胜';
-
-/** 原版 rt/st（@214089）：本局是否已获胜。
- *  winByTwo: (a>=target && a-b>=2) || (a===cap && b===cap-1)；否则 a>=target && a>b。 */
-function isGameWon(a: number, b: number, target: number, winByTwo: boolean, cap: number): boolean {
-  if (winByTwo) {
-    return (a === cap && b === cap - 1) || (a >= target && a - b >= 2 && a <= cap);
-  }
-  return a >= target && a > b && a <= cap;
-}
-
-/** 原版 ct()（@214255）：计算双方 callout（局点/赛点/胜）与已胜方。
- *  已达局分→"胜"；下一分即胜→"局点"，若该方局数+1已达标→"赛点"。 */
-function computeCallouts(
-  a: number, b: number, target: number, cap: number, winByTwo: boolean,
-  gamesA: number, gamesB: number, winsRequired: number,
-): { home: Callout; away: Callout; winner: Side | null } {
-  if (isGameWon(a, b, target, winByTwo, cap)) return { home: '胜', away: '', winner: 'A' };
-  if (isGameWon(b, a, target, winByTwo, cap)) return { home: '', away: '胜', winner: 'B' };
-  if (a >= cap || b >= cap) return { home: '', away: '', winner: null };
-  const homeNext = isGameWon(a + 1, b, target, winByTwo, cap);
-  const awayNext = isGameWon(b + 1, a, target, winByTwo, cap);
-  return {
-    home: homeNext ? (gamesA + 1 >= winsRequired ? '赛点' : '局点') : '',
-    away: awayNext ? (gamesB + 1 >= winsRequired ? '赛点' : '局点') : '',
-    winner: null,
-  };
-}
-
+/** 撤销快照：只记录"这分是谁得的"与该分之前的技术统计。
+ *  发球方撤销时按新比分用 serverAt 确定性重算（比快照回退更稳：交叉得分时不会回退过对方的分）。 */
 interface Snapshot {
-  scoreA: number; scoreB: number; gamesA: number; gamesB: number;
-  gameHistory: GameRecord[]; startServer: Side; serve: Side;
-  courtSwapped: boolean; expediteActive: boolean;
+  side: Side;
   stats?: MatchStats;
 }
 
@@ -316,7 +262,7 @@ export default function MatchScreen() {
   const { width: W, height: H } = useWindowDimensions();
   const compact = W < 720;
 
-  const [title, setTitle] = useState(restoredCfg.title || '训练赛');
+  const title = restoredCfg.title || '训练赛';   // 只读（原型标题创建后不可改）
   const [cfg, setCfg] = useState<MatchConfig>(restoredCfg);
   const [scoreA, setScoreA] = useState(resume?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(resume?.scoreB ?? 0);
@@ -352,8 +298,8 @@ export default function MatchScreen() {
 
   // ===== 原版真实"队伍暂停"机制（来自 pages/score 分包 onTeamTimeoutTap/startTeamTimeoutPause）=====
   // 每队本场仅 1 次、每次 60 秒；暂停时锁定计分并显示全屏倒计时遮罩
-  const [homeTimeoutsLeft, setHomeTimeoutsLeft] = useState(1);
-  const [awayTimeoutsLeft, setAwayTimeoutsLeft] = useState(1);
+  const [homeTimeoutsLeft, setHomeTimeoutsLeft] = useState(resume?.homeTimeoutsLeft ?? 1);
+  const [awayTimeoutsLeft, setAwayTimeoutsLeft] = useState(resume?.awayTimeoutsLeft ?? 1);
   const [pauseActive, setPauseActive] = useState(false);
   const [pauseMode, setPauseMode] = useState<'team' | 'interGame'>('team');
   const [pauseSide, setPauseSide] = useState<Side>('A');
@@ -373,6 +319,7 @@ export default function MatchScreen() {
   const [voiceOn, setVoiceOn] = useState(true);           // 语音播报（voiceOpen）
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false); // 工具栏折叠
   const [themeId, setThemeId] = useState('classic');      // 主题配色
+  const [customThemes, setCustomThemes] = useState<typeof THEMES>([]); // 自定义主题（计分主题页创建）
   const [largeScreen, setLargeScreen] = useState(false);   // 大屏模式（largeScreenMode）
   const [autoCourtSwap, setAutoCourtSwap] = useState(initial.autoCourtSwap ?? true);
   const [interGameRest, setInterGameRest] = useState(initial.interGameRest ?? false);
@@ -421,7 +368,7 @@ export default function MatchScreen() {
   const [ruleHelp, setRuleHelp] = useState<'expedite' | 'return13' | null>(null);
 
   // ===== 乒乓特有真实规则（来自 pages/score/lib/pingpong_rules.js）=====
-  const [courtSwapped, setCourtSwapped] = useState(false);        // courtSidesSwapped 换边
+  const [courtSwapped, setCourtSwapped] = useState(resume?.courtSwapped ?? false);        // courtSidesSwapped 换边
   // 原版 beginCourtSwapSlide：确认局分后先滑动换边（620ms cubic-bezier(.22,.76,.24,1)），
   // 680ms 后才 applyBadmintonInterGameZeroFlip 把比分翻页归零。swapAnim 0→1 表示滑动进度。
   const swapAnim = useRef(new Animated.Value(0)).current;
@@ -429,14 +376,14 @@ export default function MatchScreen() {
   const settlingRef = useRef(false);                              // 结算动画进行中守卫，防重复触发
   const [expediteActive, setExpediteActive] = useState(false);    // 轮换发球法（一经启用持续全场）
   const [returnCount, setReturnCount] = useState(0);              // 数13拍（0-13，到13只提醒不加分）
-  const deciderFiveDoneRef = useRef(false);                       // 决胜局5分换边防重复
+  const deciderFiveDoneRef = useRef(resume?.deciderFiveDone ?? false);   // 决胜局5分换边防重复（恢复时带回）
 
   /** 原版 wx.showModal 的白色确认框（点 T 请求暂停 / 提前结束暂停） */
   const [confirmModal, setConfirmModal] = useState<{
     title: string; content: string; onConfirm: () => void; confirmText?: string; cancelText?: string;
   } | null>(null);
 
-  const theme = resolveTheme(themeId, THEMES);
+  const theme = resolveTheme(themeId, [...THEMES, ...customThemes]);
   // 真人录音语音播报（只有比分；其余场景静音）
   const voice = useVoiceQueue();
   const playScoreVoice = useCallback((a: number, b: number, serveSide: Side) => {
@@ -460,7 +407,10 @@ export default function MatchScreen() {
         const customRaw = await AsyncStorage.getItem('ymq_custom_themes_v1');
         const custom: typeof THEMES = customRaw ? JSON.parse(customRaw) : [];
         const all = [...THEMES, ...custom];
-        if (mounted && all.some((t) => t.id === savedId)) setThemeId(savedId);
+        if (mounted) {
+          setCustomThemes(custom);
+          if (all.some((t) => t.id === savedId)) setThemeId(savedId);
+        }
       } catch { /* ignore */ }
     })();
     return () => { mounted = false; };
@@ -551,13 +501,15 @@ export default function MatchScreen() {
         const snap: MatchSnapshot = {
           scoreA, scoreB, gamesA, gamesB, gameHistory, startServer, serve,
           stats: statsRef.current,
+          courtSwapped, homeTimeoutsLeft, awayTimeoutsLeft, deciderFiveDone: deciderFiveDoneRef.current,
           config: { ...cfg, title, dateLabel: cfg.dateLabel },
         };
         upsertOngoingMatch(snap).catch(() => {});
         goBack();
       },
     });
-  }, [goBack, scoreA, scoreB, gamesA, gamesB, gameHistory, startServer, serve, cfg, title]);
+  }, [goBack, scoreA, scoreB, gamesA, gamesB, gameHistory, startServer, serve, cfg, title,
+      courtSwapped, homeTimeoutsLeft, awayTimeoutsLeft]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -570,10 +522,7 @@ export default function MatchScreen() {
 
   useEffect(() => () => { voice.stop(); }, []);
 
-  const snapshot = (): Snapshot => ({
-    scoreA, scoreB, gamesA, gamesB, gameHistory, startServer, serve,
-    courtSwapped, expediteActive, stats: statsRef.current,
-  });
+  const snapshot = (side: Side): Snapshot => ({ side, stats: statsRef.current });
 
   const finishMatch = (list: GameRecord[], winnerSide: Side) => {
     // 整场打完：清除对应的进行中存档，写入最终结果（避免历史里同时留 ongoing + finished）
@@ -585,7 +534,7 @@ export default function MatchScreen() {
       gamesB: list.filter((g) => g.winner === 'B').length,
       games: list, winner: winnerSide,
       config: { pointsToWin: cfg.pointsToWin, gamesToWin: cfg.gamesToWin },
-    }, `ongoing_${title}_${cfg.nameA}_${cfg.nameB}`.replace(/\s+/g, ''));
+    }, ongoingMatchId(title, cfg.nameA, cfg.nameB));
     setResult({ winner: winnerSide, games: list });
     speak(`${winnerSide === 'A' ? cfg.nameA : cfg.nameB} 获胜`);
   };
@@ -684,7 +633,7 @@ export default function MatchScreen() {
       return;
     }
 
-    setUndoStack((st) => [...st, snapshot()]);
+    setUndoStack((st) => [...st, snapshot(side)]);
     const nextA = scoreA + (side === 'A' ? 1 : 0);
     const nextB = scoreB + (side === 'B' ? 1 : 0);
     // 原型 recordRacketMatchStatPoint：逐分记统计（发球方=serve、得分方=side）
@@ -723,8 +672,7 @@ export default function MatchScreen() {
   };
 
   // 原型 applyPointDelta(side, -1)：点哪方就减哪方自己的分，clampRallyPoints 下限 0
-  // （自己 0 分时点 − 无任何效果，绝不减对方）；发球/回合态用"上一次加分前"快照回退，
-  // 对应原版 pingpongServeUndoStack.pop。局数/换边不因减分而回退。
+  // （自己 0 分时点 − 无任何效果，绝不减对方）；局数/换边不因减分而回退。
   const undo = (side: Side) => {
     // 到局分等待确认（手势出现）时比分锁定：只能再点赢家 +（或手势）确认进入下一局
     if (gameWinAwaitingConfirm) return;
@@ -739,15 +687,23 @@ export default function MatchScreen() {
     triggerFlip(side, cur, false);   // 只有自己方分数回落，向下翻
     if (side === 'A') setScoreA(next); else setScoreB(next);
 
-    // 发球态回退到上一次加分前（原版 pop pingpongServeUndoStack）
-    const s = undoStack[undoStack.length - 1] as Snapshot | undefined;
-    if (s) {
-      setUndoStack((st) => st.slice(0, -1));
-      setStartServer(s.startServer); setServe(s.serve);
-      setExpediteActive(s.expediteActive);
-      setReturnCount(0);
-      if (s.stats) { statsRef.current = s.stats; setStatsTick((n) => n + 1); }
+    // 只回退"本方上一次加分"的快照：交叉得分时对方的快照留在栈里、对方的统计分不误删
+    let idx = -1;
+    for (let i = undoStack.length - 1; i >= 0; i--) {
+      if (undoStack[i].side === side) { idx = i; break; }
     }
+    if (idx >= 0) {
+      const s = undoStack[idx];
+      setUndoStack((st) => st.filter((_, i) => i !== idx));
+      // 统计只在弹出的正是栈顶（该分是最近一分的连续情形）时才整体回退，
+      // 交叉得分时无法安全"反应用"中间那分，保留现状即可
+      if (s.stats && idx === undoStack.length - 1) {
+        statsRef.current = s.stats; setStatsTick((n) => n + 1);
+      }
+    }
+    // 发球方按新比分确定性重算（手动换发/轮换法都已折算进 startServer，结果一致）
+    setServe(serverAt(a, b, startServer, cfg.serveInterval, cfg.pointsToWin, cfg.winByTwo, expediteActive));
+    setReturnCount(0);
     setResult(null);
     const cap = cfg.pointsToWin + 9;
     const c = computeCallouts(a, b, cfg.pointsToWin, cap, cfg.winByTwo, gamesA, gamesB, cfg.gamesToWin);
@@ -916,8 +872,10 @@ export default function MatchScreen() {
       confirmText: '确定', cancelText: '取消',
       onConfirm: () => {
         const w: Side = gamesA !== gamesB ? (gamesA > gamesB ? 'A' : 'B') : (scoreA >= scoreB ? 'A' : 'B');
-        const last: GameRecord = { a: scoreA, b: scoreB, winner: scoreA >= scoreB ? 'A' : 'B', index: gameHistory.length + 1 };
-        const games = [...gameHistory, last];
+        // 当前局 0:0（还没打过球）不计入局史，避免历史里多出一条"第 N 局 0:0"
+        const games = scoreA === 0 && scoreB === 0
+          ? gameHistory
+          : [...gameHistory, { a: scoreA, b: scoreB, winner: scoreA >= scoreB ? 'A' as Side : 'B' as Side, index: gameHistory.length + 1 }];
         const date = cfg.dateLabel || new Date().toISOString();
         completeMatch({
           id: `M${Date.now()}`, date,
@@ -926,7 +884,7 @@ export default function MatchScreen() {
           gamesB: games.filter((g) => g.winner === 'B').length,
           games, winner: w,
           config: { pointsToWin: cfg.pointsToWin, gamesToWin: cfg.gamesToWin },
-        }, `ongoing_${title}_${cfg.nameA}_${cfg.nameB}`.replace(/\s+/g, ''));
+        }, ongoingMatchId(title, cfg.nameA, cfg.nameB));
         setManualEnd({ winner: w, games, date });
         setEndScoreView('games');
         voice.stop();
@@ -1746,7 +1704,6 @@ const styles = StyleSheet.create({
   menuDot: { position: 'absolute', right: 4, top: 2, width: 7, height: 7, borderRadius: 4, backgroundColor: '#ff3b30' },
 
   cardsRow: { flex: 1, flexDirection: 'row', paddingBottom: 8 },
-  cardsRowStack: { flexDirection: 'column' },
   card: { flex: 1, borderRadius: 16, overflow: 'hidden', marginHorizontal: 3, marginVertical: 1 },
   cardHead: { width: '100%', justifyContent: 'center' },
   cardDivider: { width: '100%', backgroundColor: '#000000' },
@@ -1765,7 +1722,6 @@ const styles = StyleSheet.create({
   serveSlot: { height: 44, justifyContent: 'flex-start', paddingTop: 8 },
   serveDot: { backgroundColor: '#fff' },
   scoreRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  bigScore: { color: '#fff', fontFamily: SCORE_FONT, fontWeight: '900', textAlign: 'center' },
   stepCol: { marginLeft: 10, gap: 8 },
   stepBtnWrap: { position: 'relative', width: 46, height: 46 },
   stepBtn: { width: 46, height: 46, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.22)' },
@@ -1774,12 +1730,10 @@ const styles = StyleSheet.create({
 
   // 原版中间黑列（两卡之间）：顶部菜单 + 中部球网灰点 + 底部比赛用时，纯展示
   centerCol: { width: 52, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
-  centerColStack: { width: '100%', height: 34, flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 0 },
   centerMenu: { position: 'relative', width: 40, height: 34, alignItems: 'center', justifyContent: 'center' },
   netSlot: { alignItems: 'center', gap: 6 },
   netDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#555' },
   clockText: { color: '#fff', fontSize: 12, fontVariant: ['tabular-nums'] },
-  timerRunning: { color: '#34c759' },
 
   modalMask: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   modalCard: { width: '86%', maxWidth: 420, backgroundColor: '#1c1c1e', borderRadius: 16, padding: 20 },
@@ -1873,9 +1827,6 @@ const s = StyleSheet.create({
   optOn: { backgroundColor: C_BLUE },
   optText: { color: '#d1d5db', fontSize: 13 },
   optTextOn: { color: '#fff', fontWeight: '700' },
-  themeOpt: { flexDirection: 'row', gap: 3, padding: 6, borderRadius: 8, backgroundColor: '#2c2c2e', borderWidth: 2, borderColor: 'transparent' },
-  themeOptOn: { borderColor: '#fff' },
-  themeSwatch: { width: 18, height: 18, borderRadius: 4 },
   themeName: { color: '#9ca3af', fontSize: 11, marginTop: 6 },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
   switchTrack: { width: 44, height: 26, borderRadius: 13, backgroundColor: '#3a3a3c', padding: 3, justifyContent: 'center' },

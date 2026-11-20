@@ -85,11 +85,6 @@ export default function ScoreThemeScreen() {
   const allThemes = [...THEMES, ...custom];
   const current = allThemes.find((t) => t.id === themeId) || THEMES[0];
 
-  const store = {
-    getItem: (k: string) => (k === UI_KEY ? null : null), // 直接操作 AsyncStorage，保留接口形态
-    setItem: (k: string, v: string) => { AsyncStorage.setItem(k, v); },
-  };
-
   const select = (id: string) => {
     setThemeId(id);
     (async () => {

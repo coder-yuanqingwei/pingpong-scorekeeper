@@ -48,11 +48,7 @@ export default function HistoryScreen() {
               </View>
               <View style={styles.scoreRow}>
                 <Text style={[styles.name, !ongoing && m.winner === 'A' && styles.nameWin]}>{m.nameA}</Text>
-                <Text style={styles.score}>
-                  {ongoing && snap
-                    ? `${m.gamesA + snap.scoreA} : ${m.gamesB + snap.scoreB}`
-                    : `${m.gamesA} : ${m.gamesB}`}
-                </Text>
+                <Text style={styles.score}>{`${m.gamesA} : ${m.gamesB}`}</Text>
                 <Text style={[styles.name, styles.nameRight, !ongoing && m.winner === 'B' && styles.nameWin]}>{m.nameB}</Text>
               </View>
               {ongoing && snap && (

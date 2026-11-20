@@ -125,6 +125,7 @@ export function useVoiceQueue() {
   const player: AudioPlayer = useAudioPlayer(null);
   const queueRef = useRef<AudioSource[]>([]);
   const idxRef = useRef(0);
+  const curIdxRef = useRef(-1);      // 当前正在播放的序号（事件与定时器双路推进的去重依据）
   const playingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onEndedRef = useRef<() => void>(() => {});
@@ -136,6 +137,7 @@ export function useVoiceQueue() {
   const playIndex = useCallback((i: number) => {
     const src = queueRef.current[i];
     if (src == null) { playingRef.current = false; return; }
+    curIdxRef.current = i;
     player.replace(src);
     player.play();
     // 兜底：某些环境（尤其 web）onEnded/didJustFinish 不稳定，按时长推进
@@ -158,10 +160,11 @@ export function useVoiceQueue() {
     }
   };
 
-  // 监听播放器结束事件（原生端 didJustFinish），优先于超时兜底
+  // 监听播放器结束事件（原生端 didJustFinish），优先于超时兜底。
+  // 与定时器同款 idx 守卫：定时器已推进（idxRef 已前移）时到达的迟到事件直接忽略，防止跳条。
   useEffect(() => {
     const unsub = player.addListener('playbackStatusUpdate', (status) => {
-      if (status.didJustFinish && playingRef.current) {
+      if (status.didJustFinish && playingRef.current && idxRef.current === curIdxRef.current) {
         clearTimer();
         onEndedRef.current();
       }

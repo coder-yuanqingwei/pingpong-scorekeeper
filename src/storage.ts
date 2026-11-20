@@ -51,6 +51,13 @@ export interface MatchSnapshot {
   serve: 'A' | 'B';
   /** 技术统计（原型 matchStats）：继续比赛时恢复五项实时统计 */
   stats?: MatchStats;
+  /** 换边状态：决胜局 5 分换边/局间换边后退出，恢复时带回正确左右侧 */
+  courtSwapped?: boolean;
+  /** 双方剩余暂停次数（原版每队 1 次），恢复时带回避免暂停次数凭空回满 */
+  homeTimeoutsLeft?: number;
+  awayTimeoutsLeft?: number;
+  /** 决胜局 5 分换边是否已触发，恢复时带回避免再次换边 */
+  deciderFiveDone?: boolean;
   /** 赛前完整配置（含每局分数/胜局数/发球间隔等），恢复时直接带回计分页 */
   config: {
     title: string;
