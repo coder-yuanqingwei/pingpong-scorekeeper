@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { SCORE_FONT } from '../theme';
+import { t, useI18n } from '../i18n';
 
 /**
  * 原型 pages/score「各局比分」按钮（工具栏第 4 个 onOpenSmallScoreDetail）打开的
@@ -124,6 +125,7 @@ function SetsView({ nameA, nameB, gamesA, gamesB, winner }: {
 }
 
 export default function SmallScoreDetailPanel(props: SmallScoreDetailProps) {
+  useI18n();   // 订阅界面语言变化
   const { width: W, height: H } = useWindowDimensions();
   const end = props.mode === 'end';
   const view = props.endScoreView ?? 'games';
@@ -138,10 +140,10 @@ export default function SmallScoreDetailPanel(props: SmallScoreDetailProps) {
             <View style={d.endHead}>
               {props.showStatsLink && (
                 <TouchableOpacity style={d.statsLink} onPress={props.onStats} activeOpacity={0.7}>
-                  <Text style={d.statsLinkText}>技术统计</Text>
+                  <Text style={d.statsLinkText}>{t("技术统计")}</Text>
                 </TouchableOpacity>
               )}
-              <Text style={d.endTitle}>比赛结束</Text>
+              <Text style={d.endTitle}>{t("比赛结束")}</Text>
               {!!props.dateText && <Text style={d.endSub}>{props.dateText}</Text>}
             </View>
           ) : (
@@ -170,27 +172,27 @@ export default function SmallScoreDetailPanel(props: SmallScoreDetailProps) {
             {end ? (
               <>
                 <TouchableOpacity style={[d.btn, d.btnToggle]} onPress={props.onToggleEndView} activeOpacity={0.7}>
-                  <Text style={d.btnText}>{view === 'sets' ? '各局比分' : '大局比分'}</Text>
+                  <Text style={d.btnText}>{view === 'sets' ? t('各局比分') : t('大局比分')}</Text>
                 </TouchableOpacity>
                 {props.showRematch !== false && (
                   <TouchableOpacity style={[d.btn, d.btnRematch]} onPress={props.onRematch} activeOpacity={0.7}>
-                    <Text style={d.btnText}>再来一局</Text>
+                    <Text style={d.btnText}>{t("再来一局")}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={[d.btn, d.btnExit]} onPress={props.onExit} activeOpacity={0.7}>
-                  <Text style={d.btnText}>退出比赛</Text>
+                  <Text style={d.btnText}>{t("退出比赛")}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <TouchableOpacity style={[d.btn, d.btnExit]} onPress={props.onManualEnd} activeOpacity={0.7}>
-                  <Text style={d.btnText}>手动结束比赛</Text>
+                  <Text style={d.btnText}>{t("手动结束比赛")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[d.btn, d.btnToggle]} onPress={props.onRestart} activeOpacity={0.7}>
-                  <Text style={d.btnText}>重新开始</Text>
+                  <Text style={d.btnText}>{t("重新开始")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[d.btn, d.btnRematch]} onPress={props.onClose} activeOpacity={0.7}>
-                  <Text style={d.btnText}>继续比赛</Text>
+                  <Text style={d.btnText}>{t("继续比赛")}</Text>
                 </TouchableOpacity>
               </>
             )}

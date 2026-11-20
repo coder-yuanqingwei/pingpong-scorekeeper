@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing,
   useWindowDimensions,
 } from 'react-native';
+import { t, useI18n } from '../i18n';
 
 /**
  * 原型 pages/score 第5个按钮「技术统计」→ onOpenLiveStatsSheet 打开的
@@ -47,6 +48,7 @@ export default function LiveStatsSheet({
   visible, onClose, homeTitle, awayTitle, rows, swapped = false,
   fillHome = '#2c6cea', fillAway = '#e05252',
 }: LiveStatsSheetProps) {
+  useI18n();   // 订阅界面语言变化
   const { width: W, height: H } = useWindowDimensions();
   const [mounted, setMounted] = useState(visible);
   const [active, setActive] = useState(false);

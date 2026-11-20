@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { C, GRADIENT_COLORS, GRADIENT_START, GRADIENT_END, R, shadow } from '../theme';
+import { t, useI18n } from '../i18n';
 
 interface HeroProps {
   kicker: string;

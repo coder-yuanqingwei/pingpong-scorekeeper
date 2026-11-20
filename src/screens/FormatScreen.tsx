@@ -13,6 +13,7 @@ import {
   buildGroupKnockout, standings,
 } from '../algorithms';
 import type { FormatNavProp } from '../navigation.types';
+import { t, useI18n } from '../i18n';
 
 const DEFAULT_OPTIONS = {
   seed: 1, groups: 4, rounds: 5, teamSize: 4, advancePerGroup: 2, games: 10,
@@ -22,7 +23,7 @@ const DEFAULT_OPTIONS = {
 interface TeamDefLocal { name: string; players: string[] }
 
 function labelOf(ref: Ref, players: string[], teams?: TeamDefLocal[] | null): string {
-  if (ref == null) return '待定';
+  if (ref == null) return t('待定');
   if (Array.isArray(ref)) return ref.map((x) => labelOf(x as Ref, players, teams)).join(' / ');
   if (typeof ref === 'number') {
     if (teams) return teams[ref]?.name || `队伍${ref + 1}`;
@@ -48,7 +49,7 @@ function MatchRow({ title, a, b, result, onWin, onScore, small }: MatchRowProps)
     <View style={[styles.matchRow, small && styles.matchRowSmall]}>
       <View style={styles.matchMeta}>
         <Text style={styles.matchId}>{title}</Text>
-        {onScore && <TouchableOpacity onPress={onScore}><Text style={styles.scoreLink}>计分 ›</Text></TouchableOpacity>}
+        {onScore && <TouchableOpacity onPress={onScore}><Text style={styles.scoreLink}>{t("计分 ›")}</Text></TouchableOpacity>}
       </View>
       <View style={styles.matchBody}>
         {sides.map(([side, label]) => (
@@ -71,6 +72,7 @@ function MatchRow({ title, a, b, result, onWin, onScore, small }: MatchRowProps)
 }
 
 export default function FormatScreen() {
+  useI18n();   // 订阅界面语言变化
   const navigation = useNavigation<FormatNavProp>();
   const [view, setView] = useState<'list' | 'setup' | 'detail'>('list');
   const [format, setFormat] = useState<FormatDef | null>(null);
@@ -94,7 +96,7 @@ export default function FormatScreen() {
 
   const commit = (players: string[], teams: TeamDefLocal[] | null, fixture: import('../algorithms/types').Fixture) => {
     if (!format) return;
-    const t: Tournament = {
+    const x: Tournament = {
       id: `T${Date.now()}`,
       formatKey: format.key,
       title: format.name,
@@ -103,8 +105,8 @@ export default function FormatScreen() {
       results: {},
       createdAt: new Date().toISOString(),
     };
-    saveTournament(t).then(setSaved);
-    setTournament(t);
+    saveTournament(x).then(setSaved);
+    setTournament(x);
     setGroupKo(null);
     setView('detail');
   };
@@ -116,28 +118,28 @@ export default function FormatScreen() {
         const [name, rest] = line.split(/[:：]/);
         return { name: name?.trim() || `队伍${i + 1}`, players: (rest || '').split(/[,，、\s]+/).filter(Boolean) };
       });
-      if (teams.length < 2) { Alert.alert('提示', '至少输入两支队伍，格式：队名:选手1,选手2'); return; }
+      if (teams.length < 2) { Alert.alert(t('提示'), t('至少输入两支队伍，格式：队名:选手1,选手2')); return; }
       const fixture = generateFixtures('team', teams.flatMap((t) => t.players), { ...options, teams });
       commit(teams.flatMap((t) => t.players), teams, fixture);
       return;
     }
     const players = playersText.split('\n').map((s) => s.trim()).filter(Boolean);
-    if (players.length < 2) { Alert.alert('提示', '至少输入两位选手（每行一个）'); return; }
+    if (players.length < 2) { Alert.alert(t('提示'), t('至少输入两位选手（每行一个）')); return; }
     const fixture = generateFixtures(format.key, players, options);
     commit(players, null, fixture);
   };
 
-  const openSaved = (t: Tournament) => {
-    setFormat(FORMATS.find((f) => f.key === t.formatKey) || FORMATS[0] as FormatDef);
-    setTournament(t);
-    setPlayersText((t.players || []).join('\n'));
-    setOptions(t.options || { ...DEFAULT_OPTIONS });
+  const openSaved = (x: Tournament) => {
+    setFormat(FORMATS.find((f) => f.key === x.formatKey) || FORMATS[0] as FormatDef);
+    setTournament(x);
+    setPlayersText((x.players || []).join('\n'));
+    setOptions(x.options || { ...DEFAULT_OPTIONS });
     setView('detail');
   };
 
-  const persist = (t: Tournament) => {
-    setTournament(t);
-    saveTournament(t).then(setSaved);
+  const persist = (x: Tournament) => {
+    setTournament(x);
+    saveTournament(x).then(setSaved);
   };
 
   const setResult = (matchId: string, side: Side, match: { a?: Ref; b?: Ref } | null, scoreA?: number | null, scoreB?: number | null) => {
@@ -172,30 +174,30 @@ export default function FormatScreen() {
   if (view === 'list') {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <Hero kicker="MATCH FORMATS" title="比赛活动" lead="赛制编排 · 本地生成，可复现可分享" />
+        <Hero kicker="MATCH FORMATS" title={t("比赛活动")} lead={t("赛制编排 · 本地生成，可复现可分享")} />
 
         {saved.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>已保存的赛程</Text>
-            {saved.map((t) => (
-              <View key={t.id} style={styles.savedRow}>
-                <TouchableOpacity style={styles.savedMain} onPress={() => openSaved(t)}>
-                  <Text style={styles.savedTitle}>{t.title}</Text>
-                  <Text style={styles.savedMeta}>{t.players?.length || t.teams?.length || 0} 人 · {new Date(t.createdAt).toLocaleDateString()}</Text>
+            <Text style={styles.sectionTitle}>{t("已保存的赛程")}</Text>
+            {saved.map((x) => (
+              <View key={x.id} style={styles.savedRow}>
+                <TouchableOpacity style={styles.savedMain} onPress={() => openSaved(x)}>
+                  <Text style={styles.savedTitle}>{x.title}</Text>
+                  <Text style={styles.savedMeta}>{x.players?.length || x.teams?.length || 0} 人 · {new Date(x.createdAt).toLocaleDateString()}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => {
-                  Alert.alert('删除赛程', '确定删除这个赛程吗？', [
-                    { text: '取消', style: 'cancel' },
-                    { text: '删除', style: 'destructive', onPress: () => removeTournament(t.id).then(setSaved) },
+                  Alert.alert(t('删除赛程'), t('确定删除这个赛程吗？'), [
+                    { text: t('取消'), style: 'cancel' },
+                    { text: t('删除'), style: 'destructive', onPress: () => removeTournament(tournament!.id).then(setSaved) },
                   ]);
-                }}><Text style={styles.delete}>删除</Text></TouchableOpacity>
+                }}><Text style={styles.delete}>{t("删除")}</Text></TouchableOpacity>
               </View>
             ))}
           </View>
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>选择赛制</Text>
+          <Text style={styles.sectionTitle}>{t("选择赛制")}</Text>
           <View style={styles.grid}>
             {FORMATS.filter((f) => f.key !== 'quick').map((f) => (
               <TouchableOpacity key={f.key} style={styles.formatCard} onPress={() => choose(f)}>
@@ -212,12 +214,12 @@ export default function FormatScreen() {
   if (view === 'setup' && format) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => setView('list')}><Text style={styles.back}>‹ 返回</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setView('list')}><Text style={styles.back}>{t("‹ 返回")}</Text></TouchableOpacity>
         <Text style={styles.h1}>{format.name}</Text>
         <Text style={styles.sub}>{format.desc}</Text>
 
         <View style={styles.panel}>
-          <Text style={styles.label}>{format.needs === 'teams' ? '队伍与选手（每行：队名:选手1,选手2）' : '选手名单（每行一位，顺序即种子顺序）'}</Text>
+          <Text style={styles.label}>{format.needs === 'teams' ? t('队伍与选手（每行：队名:选手1,选手2）') : t('选手名单（每行一位，顺序即种子顺序）')}</Text>
           <TextInput
             style={styles.textarea}
             multiline
@@ -229,45 +231,45 @@ export default function FormatScreen() {
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>参数</Text>
-          <OptionRow label="随机种子" value={String(options.seed)} onChange={(v) => updateOpt('seed', Number(v) || 1)} />
+          <Text style={styles.sectionTitle}>{t("参数")}</Text>
+          <OptionRow label={t("随机种子")} value={String(options.seed)} onChange={(v) => updateOpt('seed', Number(v) || 1)} />
           {['group-ko'].includes(format.key) && (
             <>
-              <OptionRow label="分组数" value={String(options.groups)} onChange={(v) => updateOpt('groups', Number(v) || 2)} />
-              <OptionRow label="每组出线" value={String(options.advancePerGroup)} onChange={(v) => updateOpt('advancePerGroup', Number(v) || 1)} />
+              <OptionRow label={t("分组数")} value={String(options.groups)} onChange={(v) => updateOpt('groups', Number(v) || 2)} />
+              <OptionRow label={t("每组出线")} value={String(options.advancePerGroup)} onChange={(v) => updateOpt('advancePerGroup', Number(v) || 1)} />
             </>
           )}
           {['rotation', 'mixed-rotation'].includes(format.key) && (
-            <OptionRow label="轮次数" value={String(options.rounds)} onChange={(v) => updateOpt('rounds', Number(v) || 1)} />
+            <OptionRow label={t("轮次数")} value={String(options.rounds)} onChange={(v) => updateOpt('rounds', Number(v) || 1)} />
           )}
           {format.key === 'arena' && (
-            <OptionRow label="总局数" value={String(options.games)} onChange={(v) => updateOpt('games', Number(v) || 1)} />
+            <OptionRow label={t("总局数")} value={String(options.games)} onChange={(v) => updateOpt('games', Number(v) || 1)} />
           )}
           {format.key === 'qualifier' && (
-            <OptionRow label="出线名额" value={String(options.qualifyCount)} onChange={(v) => updateOpt('qualifyCount', Number(v) || 1)} />
+            <OptionRow label={t("出线名额")} value={String(options.qualifyCount)} onChange={(v) => updateOpt('qualifyCount', Number(v) || 1)} />
           )}
           {format.key === 'team' && (
             <>
-              <OptionRow label="每场单打数" value={String(options.singlesPerTie)} onChange={(v) => updateOpt('singlesPerTie', Number(v) || 1)} />
-              <OptionRow label="每场双打数" value={String(options.doublesPerTie)} onChange={(v) => updateOpt('doublesPerTie', Number(v) || 1)} />
+              <OptionRow label={t("每场单打数")} value={String(options.singlesPerTie)} onChange={(v) => updateOpt('singlesPerTie', Number(v) || 1)} />
+              <OptionRow label={t("每场双打数")} value={String(options.doublesPerTie)} onChange={(v) => updateOpt('doublesPerTie', Number(v) || 1)} />
             </>
           )}
-          <Text style={styles.hint}>相同种子 + 相同名单 → 生成完全相同的赛程，便于分享和复查。</Text>
+          <Text style={styles.hint}>{t("相同种子 + 相同名单 → 生成完全相同的赛程，便于分享和复查。")}</Text>
         </View>
 
         <TouchableOpacity style={styles.primaryBtn} onPress={generate}>
-          <Text style={styles.primaryBtnText}>生成赛程</Text>
+          <Text style={styles.primaryBtnText}>{t("生成赛程")}</Text>
         </TouchableOpacity>
       </ScrollView>
     );
   }
 
   if (!tournament) return null;
-  const t = tournament;
-  const f = t.fixture;
-  const players = t.players || [];
-  const teams = t.teams || null;
-  const results = t.results || {};
+  const tourney = tournament;
+  const f = tourney.fixture;
+  const players = tourney.players || [];
+  const teams = tourney.teams || null;
+  const results = tourney.results || {};
 
   const renderMatch = (m: RoundMatch, title?: string, compact?: boolean) => (
     <MatchRow
@@ -288,10 +290,10 @@ export default function FormatScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <TouchableOpacity onPress={() => setView('list')}><Text style={styles.back}>‹ 赛制列表</Text></TouchableOpacity>
+      <TouchableOpacity onPress={() => setView('list')}><Text style={styles.back}>{t("‹ 赛制列表")}</Text></TouchableOpacity>
       <View style={styles.detailHead}>
-        <Text style={styles.h1}>{t.title}</Text>
-        <Text style={styles.sub}>{players.length || teams?.length || 0} 人 · 种子 {Number(t.options?.seed) || 1} · 点击选手名可标记胜者</Text>
+        <Text style={styles.h1}>{tourney.title}</Text>
+        <Text style={styles.sub}>{players.length || teams?.length || 0} 人 · 种子 {Number(tourney.options?.seed) || 1} · 点击选手名可标记胜者</Text>
       </View>
 
       {f.kind === 'rounds' && (
@@ -363,13 +365,13 @@ export default function FormatScreen() {
             })));
             const rankings: GroupRanking[] = groupRankings(f.data, players, localResults);
             const ko = buildGroupKnockout(rankings, {
-              advancePerGroup: Number(t.options?.advancePerGroup) || 2,
-              seed: Number(t.options?.seed) || 1,
+              advancePerGroup: Number(tourney.options?.advancePerGroup) || 2,
+              seed: Number(tourney.options?.seed) || 1,
             });
-            if (!ko.schedule) { Alert.alert('提示', '请先完成小组赛并标记胜者'); return; }
+            if (!ko.schedule) { Alert.alert(t('提示'), t('请先完成小组赛并标记胜者')); return; }
             setGroupKo({ schedule: ko.schedule, seeds: ko.seeds });
           }}>
-            <Text style={styles.secondaryBtnText}>根据小组排名生成淘汰赛 →</Text>
+            <Text style={styles.secondaryBtnText}>{t("根据小组排名生成淘汰赛 →")}</Text>
           </TouchableOpacity>
           {groupKo?.schedule && (
             <BracketView
@@ -427,13 +429,13 @@ export default function FormatScreen() {
       )}
 
       <TouchableOpacity style={styles.dangerBtn} onPress={() => {
-        Alert.alert('删除', '删除这个赛程？', [
-          { text: '取消', style: 'cancel' },
-          { text: '删除', style: 'destructive', onPress: () => {
-            removeTournament(t.id).then(() => { setView('list'); loadTournaments().then(setSaved); });
+        Alert.alert(t('删除'), t('删除这个赛程？'), [
+          { text: t('取消'), style: 'cancel' },
+          { text: t('删除'), style: 'destructive', onPress: () => {
+            removeTournament(tourney.id).then(() => { setView('list'); loadTournaments().then(setSaved); });
           } },
         ]);
-      }}><Text style={styles.dangerText}>删除此赛程</Text></TouchableOpacity>
+      }}><Text style={styles.dangerText}>{t("删除此赛程")}</Text></TouchableOpacity>
     </ScrollView>
   );
 }
@@ -452,7 +454,7 @@ function Standings({ players, results }: StandingsProps) {
   if (!rows.some((r) => r.played > 0)) return null;
   return (
     <View style={styles.panel}>
-      <Text style={styles.roundTitle}>积分榜</Text>
+      <Text style={styles.roundTitle}>{t("积分榜")}</Text>
       {rows.map((r, i) => (
         <View key={r.name} style={styles.standingRow}>
           <Text style={styles.rank}>{i + 1}</Text>
@@ -480,13 +482,13 @@ function BracketView({ fixture, results, renderMatch }: {
     <View style={styles.section}>
       {states.rounds.map((round, ri) => (
         <View key={ri} style={styles.panel}>
-          <Text style={styles.roundTitle}>{ri === states.rounds.length - 1 ? '决赛' : `第 ${ri + 1} 轮`}</Text>
-          {round.map((m) => renderMatch(m, m.isBye ? '轮空晋级' : m.id))}
+          <Text style={styles.roundTitle}>{ri === states.rounds.length - 1 ? t('决赛') : `第 ${ri + 1} 轮`}</Text>
+          {round.map((m) => renderMatch(m, m.isBye ? t('轮空晋级') : m.id))}
         </View>
       ))}
       {states.champion != null && (
         <View style={styles.champion}>
-          <Text style={styles.championText}>🏆 冠军已产生</Text>
+          <Text style={styles.championText}>{t("🏆 冠军已产生")}</Text>
         </View>
       )}
     </View>

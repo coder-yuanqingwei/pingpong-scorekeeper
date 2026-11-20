@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { DerivedTheme } from '../scoreThemes';
 import { SCORE_FONT } from '../theme';
 import { ClickHandHint } from './ClickHandHint';
+import { t, useI18n } from '../i18n';
 
 export type BSide = 'A' | 'B';
 export type BCallout = '' | '局点' | '赛点' | '胜';
@@ -43,6 +44,7 @@ function fmtTime(total: number) {
 }
 
 export function BigscreenOverlay(props: BigscreenOverlayProps) {
+  useI18n();   // 订阅界面语言变化
   const {
     title, nameA, nameB, scoreA, scoreB, gamesA, gamesB, serve,
     calloutA, calloutB, awaitingConfirm, winner, courtSwapped,
@@ -110,7 +112,7 @@ export function BigscreenOverlay(props: BigscreenOverlayProps) {
         style={{ flex: 1 }}
         activeOpacity={0.92}
         onPress={() => onAddPoint(side)}
-        accessibilityLabel={showWinHint ? '点击开始下一局' : `${name} 加一分`}
+        accessibilityLabel={showWinHint ? t('点击开始下一局') : `${name} 加一分`}
       >
         <LinearGradient colors={grad} style={bs.card}>
           {/* 顶部：球员名 + 发球指示点 + 局分 */}
@@ -120,7 +122,7 @@ export function BigscreenOverlay(props: BigscreenOverlayProps) {
             </View>
             <Text style={[bs.name, { fontSize: Math.min(W * 0.045, H * 0.09) }]} numberOfLines={1}>{name}</Text>
             <View style={bs.gamesWrap}>
-              <Text style={[bs.gamesLabel, { fontSize: Math.min(W * 0.014, H * 0.03) }]}>局</Text>
+              <Text style={[bs.gamesLabel, { fontSize: Math.min(W * 0.014, H * 0.03) }]}>{t("局")}</Text>
               <Text style={[bs.games, { fontSize: Math.min(W * 0.035, H * 0.075) }]}>{games}</Text>
             </View>
           </View>
@@ -131,7 +133,7 @@ export function BigscreenOverlay(props: BigscreenOverlayProps) {
             </Animated.View>
             {showWinHint && (
               <View style={bs.winBadge}>
-                <Text style={[bs.winText, { fontSize: Math.min(W * 0.03, H * 0.065) }]}>胜</Text>
+                <Text style={[bs.winText, { fontSize: Math.min(W * 0.03, H * 0.065) }]}>{t("胜")}</Text>
               </View>
             )}
           </View>
@@ -165,7 +167,7 @@ export function BigscreenOverlay(props: BigscreenOverlayProps) {
       {/* 中间信息条：赛事名/赛制/用时 + 暂停状态 + 退出 */}
       <View style={bs.center}>
         <TouchableOpacity onPress={onExitPress} style={bs.exitBtn} activeOpacity={0.8}>
-          <Text style={[bs.exitText, exitHint && bs.exitTextHot]}>{exitHint ? '再点一次退出' : '✕'}</Text>
+          <Text style={[bs.exitText, exitHint && bs.exitTextHot]}>{exitHint ? t('再点一次退出') : '✕'}</Text>
         </TouchableOpacity>
         <View style={bs.centerBody}>
           <Text style={[bs.title, { fontSize: Math.min(W * 0.018, H * 0.038) }]} numberOfLines={1}>{title}</Text>

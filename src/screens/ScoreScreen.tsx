@@ -19,6 +19,7 @@ import {
   CUSTOM_SCORE_DEFAULT, CUSTOM_SCORE_SELECTOR_RANGE,
   customScoreFromPickerIndex, customScoreIndexOf, normalizeCustomScore,
 } from '../customScoreOptions';
+import { t, useI18n } from '../i18n';
 
 type ScoreRoute = RouteProp<RootTabParamList, '首页'>;
 
@@ -31,10 +32,11 @@ function RadioDot({ on }: { on: boolean }) {
 }
 
 export default function ScoreScreen() {
+  useI18n();   // 订阅界面语言变化
   const navigation = useNavigation<ScoreNavProp>();
   const route = useRoute<ScoreRoute>();
 
-  const [title, setTitle] = useState('训练赛');
+  const [title, setTitle] = useState(t('训练赛'));
   const [dateLabel] = useState(() => {
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, '0');
@@ -43,8 +45,8 @@ export default function ScoreScreen() {
   const [gamesToWin, setGamesToWin] = useState(2);
   const [pointsToWin, setPointsToWin] = useState(11);
   const [singles, setSingles] = useState(true);
-  const [nameA, setNameA] = useState('蓝方');
-  const [nameB, setNameB] = useState('红方');
+  const [nameA, setNameA] = useState(t('蓝方'));
+  const [nameB, setNameB] = useState(t('红方'));
   const [serveInterval, setServeInterval] = useState(2);
   const [winByTwo, setWinByTwo] = useState(true);
   const [interGameRest, setInterGameRest] = useState(false);
@@ -83,8 +85,8 @@ export default function ScoreScreen() {
         setCurrentCustomScore(s.pointsToWin);
         setIsCustomSelected(true);
       }
-      if (s.playerA && s.playerA !== '选手 A') setNameA(s.playerA);
-      if (s.playerB && s.playerB !== '选手 B') setNameB(s.playerB);
+      if (s.playerA && s.playerA !== t('选手 A')) setNameA(s.playerA);
+      if (s.playerB && s.playerB !== t('选手 B')) setNameB(s.playerB);
     });
     const preset = route.params?.preset;
     if (preset) {
@@ -133,7 +135,7 @@ export default function ScoreScreen() {
   const startMatch = () => {
     const free = isFree;
     const config: MatchConfig = {
-      title: title.trim() || '训练赛',
+      title: title.trim() || t('训练赛'),
       dateLabel,
       pointsToWin, gamesToWin: free ? winsRequiredFromFreePickerIndex(freeIdx) : gamesToWin,
       serveInterval, winByTwo, singles, nameA, nameB,
@@ -149,7 +151,7 @@ export default function ScoreScreen() {
   };
 
   const commitPlayer = () => {
-    const v = playerDraft.trim() || (playerModal === 'A' ? '蓝方' : '红方');
+    const v = playerDraft.trim() || (playerModal === 'A' ? t('蓝方') : t('红方'));
     if (playerModal === 'A') setNameA(v); else setNameB(v);
     setPlayerModal(null);
   };
@@ -158,7 +160,7 @@ export default function ScoreScreen() {
     <View style={styles.screen}>
       {/* 蓝色导航栏（原版顶部导航） */}
       <View style={styles.navBar}>
-        <Text style={styles.navTitle}>乒乓计分器</Text>
+        <Text style={styles.navTitle}>{t("乒乓计分器")}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -176,27 +178,27 @@ export default function ScoreScreen() {
 
         {/* 比赛名 + 日期时间 */}
         <View style={styles.inputRow}>
-          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="训练赛" />
+          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder={t("训练赛")} />
           <View style={styles.dateBox}><Text style={styles.dateText}>{dateLabel}</Text></View>
         </View>
 
         {/* 赛制单选组 */}
         <View style={styles.radioGrid}>
           <TouchableOpacity style={styles.radioItem} onPress={() => { setGamesToWin(3); setIsFree(false); }}>
-            <RadioDot on={gamesToWin === 3 && !isFree} /><Text style={styles.radioLabel}>5局3胜</Text>
+            <RadioDot on={gamesToWin === 3 && !isFree} /><Text style={styles.radioLabel}>{t("5局3胜")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.radioItem} onPress={() => { setGamesToWin(2); setIsFree(false); }}>
-            <RadioDot on={gamesToWin === 2 && !isFree} /><Text style={styles.radioLabel}>3局2胜</Text>
+            <RadioDot on={gamesToWin === 2 && !isFree} /><Text style={styles.radioLabel}>{t("3局2胜")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.radioItem} onPress={() => { setGamesToWin(1); setIsFree(false); }}>
-            <RadioDot on={gamesToWin === 1 && !isFree} /><Text style={styles.radioLabel}>1局1胜</Text>
+            <RadioDot on={gamesToWin === 1 && !isFree} /><Text style={styles.radioLabel}>{t("1局1胜")}</Text>
           </TouchableOpacity>
           {/* 4. 自由赛制（原型 freeGamesOptions：闲时「更多」，选中显示赛制名；点按弹锚定下拉） */}
           <TouchableOpacity
             ref={freeAnchorRef}
             style={styles.radioItem}
             onPress={() => openDropdown('free', freeAnchorRef)}
-            accessibilityLabel="自由赛制"
+            accessibilityLabel={t("自由赛制")}
           >
             <RadioDot on={isFree} />
             <Text
@@ -208,20 +210,20 @@ export default function ScoreScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.radioItem} onPress={() => { setPointsToWin(21); setIsCustomSelected(false); }}>
-            <RadioDot on={pointsToWin === 21 && !isCustomSelected} /><Text style={styles.radioLabel}>21分</Text>
+            <RadioDot on={pointsToWin === 21 && !isCustomSelected} /><Text style={styles.radioLabel}>{t("21分")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.radioItem} onPress={() => { setPointsToWin(15); setIsCustomSelected(false); }}>
-            <RadioDot on={pointsToWin === 15 && !isCustomSelected} /><Text style={styles.radioLabel}>15分</Text>
+            <RadioDot on={pointsToWin === 15 && !isCustomSelected} /><Text style={styles.radioLabel}>{t("15分")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.radioItem} onPress={() => { setPointsToWin(11); setIsCustomSelected(false); }}>
-            <RadioDot on={pointsToWin === 11 && !isCustomSelected} /><Text style={styles.radioLabel}>11分</Text>
+            <RadioDot on={pointsToWin === 11 && !isCustomSelected} /><Text style={styles.radioLabel}>{t("11分")}</Text>
           </TouchableOpacity>
           {/* 8. 自定义每局分数（原型 customScoreOptions：闲时「自定义(7分)」，选中显示当前分值；点按弹锚定下拉） */}
           <TouchableOpacity
             ref={customAnchorRef}
             style={styles.radioItem}
             onPress={() => openDropdown('custom', customAnchorRef)}
-            accessibilityLabel="自定义分数"
+            accessibilityLabel={t("自定义分数")}
           >
             <RadioDot on={isCustomSelected} />
             <Text style={styles.radioLabel} numberOfLines={1}>
@@ -230,44 +232,44 @@ export default function ScoreScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.radioItem} onPress={() => setSingles(true)}>
-            <RadioDot on={singles} /><Text style={styles.radioLabel}>单打</Text>
+            <RadioDot on={singles} /><Text style={styles.radioLabel}>{t("单打")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.radioItem} onPress={() => setSingles(false)}>
-            <RadioDot on={!singles} /><Text style={styles.radioLabel}>双打</Text>
+            <RadioDot on={!singles} /><Text style={styles.radioLabel}>{t("双打")}</Text>
           </TouchableOpacity>
           <View style={styles.radioItem} />
           <TouchableOpacity style={styles.radioItem} onPress={() => setMoreVisible(true)}>
-            <Text style={[styles.radioLabel, styles.moreLink]}>更多设置 ›</Text>
+            <Text style={[styles.radioLabel, styles.moreLink]}>{t("更多设置 ›")}</Text>
           </TouchableOpacity>
         </View>
 
         {/* 选手栏 */}
         <View style={styles.playerRow}>
           <View style={[styles.playerBox, styles.playerBoxA]}>
-            <Text style={styles.playerHint}>默认：蓝方</Text>
+            <Text style={styles.playerHint}>{t("默认：蓝方")}</Text>
             <TouchableOpacity style={[styles.playerAdd, styles.playerAddA]} onPress={() => { setPlayerModal('A'); setPlayerDraft(nameA); }}>
               <Text style={styles.playerAddIcon}>♙+</Text>
             </TouchableOpacity>
           </View>
           <View style={[styles.playerBox, styles.playerBoxB]}>
-            <Text style={styles.playerHint}>默认：红方</Text>
+            <Text style={styles.playerHint}>{t("默认：红方")}</Text>
             <TouchableOpacity style={[styles.playerAdd, styles.playerAddB]} onPress={() => { setPlayerModal('B'); setPlayerDraft(nameB); }}>
               <Text style={styles.playerAddIcon}>♙+</Text>
             </TouchableOpacity>
           </View>
         </View>
-        {nameA !== '蓝方' && <Text style={styles.playerChosen}>蓝方选手：{nameA}</Text>}
-        {nameB !== '红方' && <Text style={styles.playerChosen}>红方选手：{nameB}</Text>}
+        {nameA !== t('蓝方') && <Text style={styles.playerChosen}>蓝方选手：{nameA}</Text>}
+        {nameB !== t('红方') && <Text style={styles.playerChosen}>红方选手：{nameB}</Text>}
 
         {/* 开始比赛 */}
         <View style={styles.startRow}>
           <TouchableOpacity style={styles.startBtn} onPress={startMatch}>
-            <Text style={styles.startText}>开始比赛</Text>
+            <Text style={styles.startText}>{t("开始比赛")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.historyBtn}
             onPress={() => navigation.navigate('球员')}
-            accessibilityLabel="历史比赛"
+            accessibilityLabel={t("历史比赛")}
           >
             <HistoryIcon size={22} color="#8d8d8d" />
           </TouchableOpacity>
@@ -277,15 +279,15 @@ export default function ScoreScreen() {
         <View style={styles.entryRow}>
           <TouchableOpacity style={styles.entry} onPress={() => navigation.navigate('比赛活动')}>
             <View style={styles.entryIconWrap}><Text style={styles.entryIcon}>▦</Text></View>
-            <Text style={styles.entryLabel}>比赛活动</Text>
+            <Text style={styles.entryLabel}>{t("比赛活动")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.entry} onPress={() => navigation.navigate('比赛活动')}>
             <View style={styles.entryIconWrap}><Text style={styles.entryIcon}>♟</Text></View>
-            <Text style={styles.entryLabel}>俱乐部</Text>
+            <Text style={styles.entryLabel}>{t("俱乐部")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.entry} onPress={() => navigation.navigate('球员')}>
             <View style={styles.entryIconWrap}><Text style={styles.entryIcon}>♙</Text></View>
-            <Text style={styles.entryLabel}>好友</Text>
+            <Text style={styles.entryLabel}>{t("好友")}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -337,8 +339,8 @@ export default function ScoreScreen() {
       <Modal visible={moreVisible} transparent animationType="slide" onRequestClose={() => setMoreVisible(false)}>
         <View style={styles.modalMask}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>更多设置</Text>
-            <Text style={styles.modalLabel}>每局分数（可自定义）</Text>
+            <Text style={styles.modalTitle}>{t("更多设置")}</Text>
+            <Text style={styles.modalLabel}>{t("每局分数（可自定义）")}</Text>
             <TextInput
               style={styles.modalInput} keyboardType="numeric"
               value={String(pointsToWin)}
@@ -351,11 +353,11 @@ export default function ScoreScreen() {
               }}
             />
             <View style={styles.switchRow}>
-              <Text style={styles.modalLabel}>净胜两分才算赢</Text>
+              <Text style={styles.modalLabel}>{t("净胜两分才算赢")}</Text>
               <Switch value={winByTwo} onValueChange={setWinByTwo} />
             </View>
             <View style={styles.switchRow}>
-              <Text style={styles.modalLabel}>发球间隔（分）</Text>
+              <Text style={styles.modalLabel}>{t("发球间隔（分）")}</Text>
               <TextInput
                 style={styles.modalInputSmall} keyboardType="numeric"
                 value={String(serveInterval)}
@@ -363,15 +365,15 @@ export default function ScoreScreen() {
               />
             </View>
             <View style={styles.switchRow}>
-              <Text style={styles.modalLabel}>局间休息 60 秒</Text>
+              <Text style={styles.modalLabel}>{t("局间休息 60 秒")}</Text>
               <Switch value={interGameRest} onValueChange={setInterGameRest} />
             </View>
             <View style={styles.switchRow}>
-              <Text style={styles.modalLabel}>自动换边</Text>
+              <Text style={styles.modalLabel}>{t("自动换边")}</Text>
               <Switch value={autoCourtSwap} onValueChange={setAutoCourtSwap} />
             </View>
             <TouchableOpacity style={styles.modalOk} onPress={() => setMoreVisible(false)}>
-              <Text style={styles.modalOkText}>确定</Text>
+              <Text style={styles.modalOkText}>{t("确定")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -381,10 +383,10 @@ export default function ScoreScreen() {
       <Modal visible={!!playerModal} transparent animationType="fade" onRequestClose={() => setPlayerModal(null)}>
         <View style={styles.modalMask}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{playerModal === 'A' ? '蓝方' : '红方'}选手</Text>
+            <Text style={styles.modalTitle}>{playerModal === 'A' ? t('蓝方') : t('红方')}选手</Text>
             <TextInput style={styles.modalInput} autoFocus value={playerDraft} onChangeText={setPlayerDraft} onSubmitEditing={commitPlayer} />
             <TouchableOpacity style={styles.modalOk} onPress={commitPlayer}>
-              <Text style={styles.modalOkText}>确定</Text>
+              <Text style={styles.modalOkText}>{t("确定")}</Text>
             </TouchableOpacity>
           </View>
         </View>

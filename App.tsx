@@ -12,6 +12,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import MatchScreen from './src/screens/MatchScreen';
 import ScoreThemeScreen from './src/screens/ScoreThemeScreen';
 import { C } from './src/theme';
+import { I18nProvider, useI18n, t } from './src/i18n';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -43,6 +44,7 @@ const navTheme = {
 };
 
 function MainTabs() {
+  useI18n();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -55,6 +57,7 @@ function MainTabs() {
         tabBarActiveTintColor: C.primary,
         tabBarInactiveTintColor: '#94a3b8',
         tabBarLabelStyle: styles.tabLabel,
+        tabBarLabel: t(route.name),   // 路由 name 保持中文不变，仅显示文案跟随语言
         tabBarStyle: styles.tabBar,
         tabBarItemStyle: styles.tabItem,
       })}
@@ -69,21 +72,23 @@ function MainTabs() {
 
 export default function App() {
   return (
-    <NavigationContainer theme={navTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Tabs" component={MainTabs} />
-        <Stack.Screen
-          name="Match"
-          component={MatchScreen}
-          options={{ animation: 'slide_from_right', gestureEnabled: false }}
-        />
-        <Stack.Screen
-          name="ScoreTheme"
-          component={ScoreThemeScreen}
-          options={{ animation: 'slide_from_right' }}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <I18nProvider>
+      <NavigationContainer theme={navTheme}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Tabs" component={MainTabs} />
+          <Stack.Screen
+            name="Match"
+            component={MatchScreen}
+            options={{ animation: 'slide_from_right', gestureEnabled: false }}
+          />
+          <Stack.Screen
+            name="ScoreTheme"
+            component={ScoreThemeScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </I18nProvider>
   );
 }
 

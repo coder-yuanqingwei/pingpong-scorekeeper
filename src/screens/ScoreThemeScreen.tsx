@@ -19,6 +19,7 @@ import {
   THEMES, DerivedTheme, deriveTheme, normalizeHex,
   readThemeId, writeThemeId,
 } from '../scoreThemes';
+import { t, useI18n } from '../i18n';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ScoreTheme'>;
 const CUSTOM_KEY = 'ymq_custom_themes_v1';
@@ -29,23 +30,23 @@ interface CustomTheme extends DerivedTheme {}
 /** 顶部实时预览卡（原型 preview-card / preview-side / preview-gutter / preview-tip） */
 function PreviewCard({ theme }: { theme: DerivedTheme }) {
   return (
-    <View style={t.previewCard}>
-      <LinearGradient colors={theme.gradHome} style={t.previewSide}>
-        <View style={t.previewTotal}><Text style={t.previewTotalNum}>2</Text></View>
-        <View style={t.previewMain}>
-          <Text style={t.previewMainNum}>11</Text>
-          <View style={[t.previewTip, { backgroundColor: theme.tipHome }]}>
-            <Text style={[t.previewTipText, { color: theme.calloutTextHome }]}>局点</Text>
+    <View style={st.previewCard}>
+      <LinearGradient colors={theme.gradHome} style={st.previewSide}>
+        <View style={st.previewTotal}><Text style={st.previewTotalNum}>2</Text></View>
+        <View style={st.previewMain}>
+          <Text style={st.previewMainNum}>11</Text>
+          <View style={[st.previewTip, { backgroundColor: theme.tipHome }]}>
+            <Text style={[st.previewTipText, { color: theme.calloutTextHome }]}>{t("局点")}</Text>
           </View>
         </View>
       </LinearGradient>
-      <View style={t.previewGutter} />
-      <LinearGradient colors={theme.gradAway} style={t.previewSide}>
-        <View style={t.previewTotal}><Text style={t.previewTotalNum}>1</Text></View>
-        <View style={t.previewMain}>
-          <Text style={t.previewMainNum}>8</Text>
-          <View style={[t.previewTip, { backgroundColor: theme.tipAway }]}>
-            <Text style={[t.previewTipText, { color: theme.calloutTextAway }]}>胜</Text>
+      <View style={st.previewGutter} />
+      <LinearGradient colors={theme.gradAway} style={st.previewSide}>
+        <View style={st.previewTotal}><Text style={st.previewTotalNum}>1</Text></View>
+        <View style={st.previewMain}>
+          <Text style={st.previewMainNum}>8</Text>
+          <View style={[st.previewTip, { backgroundColor: theme.tipAway }]}>
+            <Text style={[st.previewTipText, { color: theme.calloutTextAway }]}>{t("胜")}</Text>
           </View>
         </View>
       </LinearGradient>
@@ -54,12 +55,13 @@ function PreviewCard({ theme }: { theme: DerivedTheme }) {
 }
 
 export default function ScoreThemeScreen() {
+  useI18n();   // 订阅界面语言变化
   const nav = useNavigation<Nav>();
   const [tab, setTab] = useState<'system' | 'custom'>('system');
   const [themeId, setThemeId] = useState('classic');
   const [custom, setCustom] = useState<CustomTheme[]>([]);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: '我的主题', home: '#0069d3', away: '#d40000', accent: '#ffffff', pageBg: '#000000' });
+  const [form, setForm] = useState({ name: t('我的主题'), home: '#0069d3', away: '#d40000', accent: '#ffffff', pageBg: '#000000' });
 
   // 加载持久化主题与自定义列表
   useEffect(() => {
@@ -83,7 +85,7 @@ export default function ScoreThemeScreen() {
   }, []);
 
   const allThemes = [...THEMES, ...custom];
-  const current = allThemes.find((t) => t.id === themeId) || THEMES[0];
+  const current = allThemes.find((x) => x.id === themeId) || THEMES[0];
 
   const select = (id: string) => {
     setThemeId(id);
@@ -99,7 +101,7 @@ export default function ScoreThemeScreen() {
     const id = 'custom_' + Date.now();
     const def = deriveTheme({
       id,
-      name: form.name.trim() || '自定义主题',
+      name: form.name.trim() || t('自定义主题'),
       home: normalizeHex(form.home, '#0069d3'),
       away: normalizeHex(form.away, '#d40000'),
       accentHex: normalizeHex(form.accent, '#ffffff'),
@@ -113,15 +115,15 @@ export default function ScoreThemeScreen() {
     select(id);
     setEditing(false);
     setTab('custom');
-    Alert.alert('已保存', '自定义主题已创建并应用');
+    Alert.alert(t('已保存'), t('自定义主题已创建并应用'));
   };
 
   const deleteCustom = (id: string) => {
-    Alert.alert('删除主题', '确定删除这个自定义主题？', [
-      { text: '取消', style: 'cancel' },
+    Alert.alert(t('删除主题'), t('确定删除这个自定义主题？'), [
+      { text: t('取消'), style: 'cancel' },
       {
-        text: '删除', style: 'destructive', onPress: async () => {
-          const next = custom.filter((t) => t.id !== id);
+        text: t('删除'), style: 'destructive', onPress: async () => {
+          const next = custom.filter((x) => x.id !== id);
           setCustom(next);
           await AsyncStorage.setItem(CUSTOM_KEY, JSON.stringify(next));
           if (themeId === id) select('classic');
@@ -131,51 +133,51 @@ export default function ScoreThemeScreen() {
   };
 
   const editColorRows: Array<{ key: keyof typeof form; label: string }> = [
-    { key: 'home', label: '蓝方主色' },
-    { key: 'away', label: '红方主色' },
-    { key: 'accent', label: '强调色（提示文字）' },
-    { key: 'pageBg', label: '背景色' },
+    { key: 'home', label: t('蓝方主色') },
+    { key: 'away', label: t('红方主色') },
+    { key: 'accent', label: t('强调色（提示文字）') },
+    { key: 'pageBg', label: t('背景色') },
   ];
 
   return (
-    <View style={t.page}>
+    <View style={st.page}>
       {/* 顶部标题栏（原型 navigationStyle:default，深色） */}
-      <View style={t.navBar}>
-        <TouchableOpacity onPress={() => nav.goBack()} style={t.back} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={t.backText}>‹</Text>
+      <View style={st.navBar}>
+        <TouchableOpacity onPress={() => nav.goBack()} style={st.back} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={st.backText}>‹</Text>
         </TouchableOpacity>
-        <Text style={t.navTitle}>计分器主题</Text>
+        <Text style={st.navTitle}>{t("计分器主题")}</Text>
         <View style={{ width: 30 }} />
       </View>
 
-      <ScrollView contentContainerStyle={t.body}>
+      <ScrollView contentContainerStyle={st.body}>
         {/* sticky 实时预览 */}
-        <View style={t.previewSticky}>
+        <View style={st.previewSticky}>
           <PreviewCard theme={current} />
         </View>
 
         {/* 两 tab：系统 / 自定义 */}
-        <View style={t.tabs}>
+        <View style={st.tabs}>
           <TouchableOpacity
-            style={[t.tab, tab === 'system' && t.tabActive]}
+            style={[st.tab, tab === 'system' && st.tabActive]}
             onPress={() => setTab('system')}
           >
-            <Text style={[t.tabText, tab === 'system' && t.tabTextActive]}>系统主题</Text>
-            <Text style={[t.tabCount, tab === 'system' && t.tabTextActive]}>{THEMES.length}</Text>
+            <Text style={[st.tabText, tab === 'system' && st.tabTextActive]}>{t("系统主题")}</Text>
+            <Text style={[st.tabCount, tab === 'system' && st.tabTextActive]}>{THEMES.length}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[t.tab, tab === 'custom' && t.tabActive]}
+            style={[st.tab, tab === 'custom' && st.tabActive]}
             onPress={() => setTab('custom')}
           >
-            <Text style={[t.tabText, tab === 'custom' && t.tabTextActive]}>自定义</Text>
-            <Text style={[t.tabCount, tab === 'custom' && t.tabTextActive]}>{custom.length}</Text>
+            <Text style={[st.tabText, tab === 'custom' && st.tabTextActive]}>{t("自定义")}</Text>
+            <Text style={[st.tabCount, tab === 'custom' && st.tabTextActive]}>{custom.length}</Text>
           </TouchableOpacity>
         </View>
 
         {tab === 'system' ? (
           <>
-            <Text style={t.sectionTitle}>内置主题</Text>
-            <View style={t.grid}>
+            <Text style={st.sectionTitle}>{t("内置主题")}</Text>
+            <View style={st.grid}>
               {THEMES.map((theme) => (
                 <ThemeRow
                   key={theme.id}
@@ -188,8 +190,8 @@ export default function ScoreThemeScreen() {
           </>
         ) : (
           <>
-            <Text style={t.sectionTitle}>我的自定义主题</Text>
-            <View style={t.grid}>
+            <Text style={st.sectionTitle}>{t("我的自定义主题")}</Text>
+            <View style={st.grid}>
               {custom.map((theme) => (
                 <ThemeRow
                   key={theme.id}
@@ -200,36 +202,36 @@ export default function ScoreThemeScreen() {
                 />
               ))}
               {/* 创建卡片 */}
-              <TouchableOpacity style={[t.themeRow, t.createCard]} onPress={() => setEditing(true)}>
-                <Text style={t.createPlus}>+</Text>
-                <Text style={t.createText}>创建自定义主题</Text>
+              <TouchableOpacity style={[st.themeRow, st.createCard]} onPress={() => setEditing(true)}>
+                <Text style={st.createPlus}>+</Text>
+                <Text style={st.createText}>{t("创建自定义主题")}</Text>
               </TouchableOpacity>
             </View>
 
             {editing && (
-              <View style={t.customPanel}>
-                <View style={t.customHead}>
-                  <Text style={t.customTitle}>新建自定义主题</Text>
-                  <Text style={t.customHint}>设置主色后自动派生渐变与提示色</Text>
+              <View style={st.customPanel}>
+                <View style={st.customHead}>
+                  <Text style={st.customTitle}>{t("新建自定义主题")}</Text>
+                  <Text style={st.customHint}>{t("设置主色后自动派生渐变与提示色")}</Text>
                 </View>
-                <View style={t.nameRow}>
-                  <Text style={t.nameLabel}>名称</Text>
+                <View style={st.nameRow}>
+                  <Text style={st.nameLabel}>{t("名称")}</Text>
                   <TextInput
-                    style={t.nameInput}
+                    style={st.nameInput}
                     value={form.name}
                     onChangeText={(v) => setForm({ ...form, name: v })}
-                    placeholder="我的主题"
+                    placeholder={t("我的主题")}
                     placeholderTextColor="#64748b"
                   />
                 </View>
                 {editColorRows.map(({ key, label }) => (
-                  <View key={key} style={t.colorRow}>
-                    <View style={t.colorMain}>
-                      <View style={[t.colorDot, { backgroundColor: normalizeHex(form[key], '#000000') }]} />
-                      <View style={t.colorTexts}>
-                        <Text style={t.colorLabel}>{label}</Text>
+                  <View key={key} style={st.colorRow}>
+                    <View style={st.colorMain}>
+                      <View style={[st.colorDot, { backgroundColor: normalizeHex(form[key], '#000000') }]} />
+                      <View style={st.colorTexts}>
+                        <Text style={st.colorLabel}>{label}</Text>
                         <TextInput
-                          style={t.colorHex}
+                          style={st.colorHex}
                           value={String(form[key])}
                           onChangeText={(v) => setForm({ ...form, [key]: v })}
                           placeholder="#0069d3"
@@ -239,14 +241,14 @@ export default function ScoreThemeScreen() {
                         />
                       </View>
                     </View>
-                    <Text style={t.colorArrow}>›</Text>
+                    <Text style={st.colorArrow}>›</Text>
                   </View>
                 ))}
-                <TouchableOpacity style={t.saveBtn} onPress={saveCustom}>
-                  <Text style={t.saveBtnText}>保存并应用</Text>
+                <TouchableOpacity style={st.saveBtn} onPress={saveCustom}>
+                  <Text style={st.saveBtnText}>{t("保存并应用")}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setEditing(false)} style={t.cancelBtn}>
-                  <Text style={t.cancelText}>取消</Text>
+                <TouchableOpacity onPress={() => setEditing(false)} style={st.cancelBtn}>
+                  <Text style={st.cancelText}>{t("取消")}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -263,26 +265,26 @@ function ThemeRow({ theme, active, onPress, onDelete }: {
 }) {
   return (
     <TouchableOpacity
-      style={[t.themeRow, active && t.themeRowActive]}
+      style={[st.themeRow, active && st.themeRowActive]}
       onPress={onPress}
     >
-      {active && <Text style={t.themeCheck}>✓</Text>}
-      {theme.vipOnly && <Text style={t.themeLock}>🔒 VIP</Text>}
+      {active && <Text style={st.themeCheck}>✓</Text>}
+      {theme.vipOnly && <Text style={st.themeLock}>🔒 VIP</Text>}
       {onDelete && (
-        <TouchableOpacity style={t.deleteBtn} onPress={onDelete} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <Text style={t.deleteText}>×</Text>
+        <TouchableOpacity style={st.deleteBtn} onPress={onDelete} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+          <Text style={st.deleteText}>×</Text>
         </TouchableOpacity>
       )}
-      <View style={t.themeSwatches}>
-        <LinearGradient colors={theme.gradHome} style={t.themeSwatch} />
-        <LinearGradient colors={theme.gradAway} style={t.themeSwatch} />
+      <View style={st.themeSwatches}>
+        <LinearGradient colors={theme.gradHome} style={st.themeSwatch} />
+        <LinearGradient colors={theme.gradAway} style={st.themeSwatch} />
       </View>
-      <Text numberOfLines={2} style={t.themeName}>{theme.name}</Text>
+      <Text numberOfLines={2} style={st.themeName}>{theme.name}</Text>
     </TouchableOpacity>
   );
 }
 
-const t = StyleSheet.create({
+const st = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#0f172a' },
   navBar: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, backgroundColor: '#0f172a', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
   back: { width: 30, alignItems: 'center' },

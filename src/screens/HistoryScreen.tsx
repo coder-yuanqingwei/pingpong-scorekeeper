@@ -6,8 +6,10 @@ import Hero from '../components/Hero';
 import { loadMatches, removeMatch } from '../storage';
 import type { MatchRecord } from '../storage';
 import type { HistoryNavProp } from '../navigation.types';
+import { t, useI18n } from '../i18n';
 
 export default function HistoryScreen() {
+  useI18n();   // 订阅界面语言变化
   const navigation = useNavigation<HistoryNavProp>();
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -20,15 +22,15 @@ export default function HistoryScreen() {
     return (
       <View style={[styles.screen, styles.center]}>
         <Text style={styles.emoji}>🏓</Text>
-        <Text style={styles.emptyTitle}>还没有比赛记录</Text>
-        <Text style={styles.emptyText}>去「计分」页打一场，结果会自动保存在这里</Text>
+        <Text style={styles.emptyTitle}>{t("还没有比赛记录")}</Text>
+        <Text style={styles.emptyText}>{t("去「计分」页打一场，结果会自动保存在这里")}</Text>
       </View>
     );
   }
 
   return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <Hero kicker="PLAYERS & RECORDS" title="球员" lead={`交手记录 · 共 ${matches.length} 场`} />
+        <Hero kicker="PLAYERS & RECORDS" title={t("球员")} lead={`交手记录 · 共 ${matches.length} 场`} />
       {matches.map((m) => {
         const open = expanded === m.id;
         const ongoing = m.status === 'ongoing' && !!m.snapshot;
@@ -39,7 +41,7 @@ export default function HistoryScreen() {
               <View style={styles.row}>
                 <Text style={styles.date}>{new Date(m.date).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
                 {ongoing ? (
-                  <Text style={styles.ongoingTag}>进行中</Text>
+                  <Text style={styles.ongoingTag}>{t("进行中")}</Text>
                 ) : (
                   <Text style={[styles.resultTag, m.winner === 'B' && styles.resultTagBlue]}>
                     {m.winner === 'A' ? m.nameA : m.nameB} 胜
@@ -54,7 +56,7 @@ export default function HistoryScreen() {
               {ongoing && snap && (
                 <Text style={styles.ongoingHint}>第 {snap.gameHistory.length + 1} 局 · 当前 {snap.scoreA} : {snap.scoreB}</Text>
               )}
-              {!ongoing && <Text style={styles.detailHint}>{open ? '收起详情 ▲' : '查看详情 ▼'}</Text>}
+              {!ongoing && <Text style={styles.detailHint}>{open ? t('收起详情 ▲') : t('查看详情 ▼')}</Text>}
             </TouchableOpacity>
             {ongoing && snap && (
               <View>
@@ -62,14 +64,14 @@ export default function HistoryScreen() {
                   style={styles.resumeBtn}
                   onPress={() => navigation.navigate('Match', { config: snap.config, resume: snap })}
                 >
-                  <Text style={styles.resumeBtnText}>继续比赛 →</Text>
+                  <Text style={styles.resumeBtnText}>{t("继续比赛 →")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.delOngoing} onPress={() => {
-                  Alert.alert('删除记录', '确定放弃这场未完成的比赛？', [
-                    { text: '取消', style: 'cancel' },
-                    { text: '删除', style: 'destructive', onPress: () => removeMatch(m.id).then(setMatches) },
+                  Alert.alert(t('删除记录'), t('确定放弃这场未完成的比赛？'), [
+                    { text: t('取消'), style: 'cancel' },
+                    { text: t('删除'), style: 'destructive', onPress: () => removeMatch(m.id).then(setMatches) },
                   ]);
-                }}><Text style={styles.delText}>放弃这场比赛</Text></TouchableOpacity>
+                }}><Text style={styles.delText}>{t("放弃这场比赛")}</Text></TouchableOpacity>
               </View>
             )}
             {!ongoing && open && (
@@ -82,11 +84,11 @@ export default function HistoryScreen() {
                   </View>
                 ))}
                 <TouchableOpacity style={styles.delBtn} onPress={() => {
-                  Alert.alert('删除记录', '确定删除这场比赛？', [
-                    { text: '取消', style: 'cancel' },
-                    { text: '删除', style: 'destructive', onPress: () => removeMatch(m.id).then(setMatches) },
+                  Alert.alert(t('删除记录'), t('确定删除这场比赛？'), [
+                    { text: t('取消'), style: 'cancel' },
+                    { text: t('删除'), style: 'destructive', onPress: () => removeMatch(m.id).then(setMatches) },
                   ]);
-                }}><Text style={styles.delText}>删除记录</Text></TouchableOpacity>
+                }}><Text style={styles.delText}>{t("删除记录")}</Text></TouchableOpacity>
               </View>
             )}
           </View>
