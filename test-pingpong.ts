@@ -30,8 +30,11 @@ eq('10:10 未胜', isGameWon(10, 10, 11, true, 20), false);
 eq('11:9 胜', isGameWon(11, 9, 11, true, 20), true);
 eq('11:10 未胜(需净胜2)', isGameWon(11, 10, 11, true, 20), false);
 eq('12:10 胜', isGameWon(12, 10, 11, true, 20), true);
-eq('20:20 封顶未胜', isGameWon(20, 20, 11, true, 20), false);
-eq('20:19 封顶胜(20=cap,19=cap-1)', isGameWon(20, 19, 11, true, 20), true);
+eq('20:20 未胜(需净胜2)', isGameWon(20, 20, 11, true, 20), false);
+eq('20:19 未胜(仅净胜1)', isGameWon(20, 19, 11, true, 20), false);
+eq('21:19 胜(净胜2)', isGameWon(21, 19, 11, true, 20), true);
+eq('22:20 胜(无封顶)', isGameWon(22, 20, 11, true, 20), true);
+eq('25:23 长局胜', isGameWon(25, 23, 11, true, 20), true);
 eq('19:20 未胜', isGameWon(19, 20, 11, true, 20), false);
 eq('非加分制 11:10 胜', isGameWon(11, 10, 11, false, 20), true);
 
@@ -48,10 +51,14 @@ eq('11:9 → A 胜', computeCallouts(11, 9, 11, 20, true, 1, 0, 2),
   { home: '胜', away: '', winner: 'A' });
 eq('9:11 → B 胜', computeCallouts(9, 11, 11, 20, true, 0, 1, 2),
   { home: '', away: '胜', winner: 'B' });
-eq('20:19 → A 胜(封顶)', computeCallouts(20, 19, 11, 20, true, 0, 0, 2),
+eq('20:19 → A 局点(再+1即净胜2)', computeCallouts(20, 19, 11, 20, true, 0, 0, 2),
+  { home: '局点', away: '', winner: null });
+eq('21:19 → A 胜(净胜2)', computeCallouts(21, 19, 11, 20, true, 0, 0, 2),
   { home: '胜', away: '', winner: 'A' });
-eq('19:19 双方都是局点', computeCallouts(19, 19, 11, 20, true, 0, 0, 2),
-  { home: '局点', away: '局点', winner: null });
+eq('20:20 平局无局点(需净胜2)', computeCallouts(20, 20, 11, 20, true, 0, 0, 2),
+  { home: '', away: '', winner: null });
+eq('21:20 → A 局点(再+1即胜)', computeCallouts(21, 20, 11, 20, true, 0, 0, 2),
+  { home: '局点', away: '', winner: null });
 
 // ===== nextGameStartServer =====
 eq('1 局后下局首发 B', nextGameStartServer(1, 0), 'B');

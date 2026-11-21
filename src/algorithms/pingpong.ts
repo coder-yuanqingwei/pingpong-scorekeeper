@@ -34,13 +34,12 @@ export function nextGameStartServer(gamesA: number, gamesB: number): Side {
 
 export type Callout = '' | '局点' | '赛点' | '胜';
 
-/** 原版 rt/st（@214089）：本局是否已获胜。
- *  winByTwo: (a>=target && a-b>=2) || (a===cap && b===cap-1)；否则 a>=target && a>b。 */
-export function isGameWon(a: number, b: number, target: number, winByTwo: boolean, cap: number): boolean {
-  if (winByTwo) {
-    return (a === cap && b === cap - 1) || (a >= target && a - b >= 2 && a <= cap);
-  }
-  return a >= target && a > b && a <= cap;
+/** 本局是否已获胜。
+ *  winByTwo: a>=target 且净胜>=2；否则 a>=target 且 a>b。
+ *  无封顶：deuce 后一直打到净胜 2 分（如 15:13、22:20）。
+ *  cap 参数保留仅为兼容既有调用方，已不再限制胜局。 */
+export function isGameWon(a: number, b: number, target: number, winByTwo: boolean, _cap?: number): boolean {
+  return winByTwo ? (a >= target && a - b >= 2) : (a >= target && a > b);
 }
 
 /** 原版 ct()（@214255）：计算双方 callout（局点/赛点/胜）与已胜方。
@@ -51,7 +50,6 @@ export function computeCallouts(
 ): { home: Callout; away: Callout; winner: Side | null } {
   if (isGameWon(a, b, target, winByTwo, cap)) return { home: '胜', away: '', winner: 'A' };
   if (isGameWon(b, a, target, winByTwo, cap)) return { home: '', away: '胜', winner: 'B' };
-  if (a >= cap || b >= cap) return { home: '', away: '', winner: null };
   const homeNext = isGameWon(a + 1, b, target, winByTwo, cap);
   const awayNext = isGameWon(b + 1, a, target, winByTwo, cap);
   return {
