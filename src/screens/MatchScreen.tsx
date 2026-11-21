@@ -553,7 +553,6 @@ export default function MatchScreen() {
     const list = [...gameHistory, game];
     const gA = gamesA + (w === 'A' ? 1 : 0);
     const gB = gamesB + (w === 'B' ? 1 : 0);
-    const finalServe = serverAt(endA, endB, startServer, cfg.serveInterval, target, cfg.winByTwo, expediteActive);
     const nextStart = nextGameStartServer(gA, gB);
     const matchOverNow = gA >= cfg.gamesToWin || gB >= cfg.gamesToWin;
 
@@ -578,7 +577,7 @@ export default function MatchScreen() {
       setScoreA(0); setScoreB(0);
       const nextCallout = computeCallouts(0, 0, target, cap, cfg.winByTwo, gA, gB, cfg.gamesToWin);
       applyCalloutPatch(nextCallout.home, nextCallout.away);
-      speakScore(endA, endB, finalServe, `${w === 'A' ? cfg.nameA : cfg.nameB} ${t('拿下本局')}`);
+      // 手势确认进入下一局不再播报比分：加分那刻已播过终局分，此处避免重复
       settlingRef.current = false;
       if (matchOver) {
         finishMatch(list, gA > gB ? 'A' : 'B');
